@@ -12,6 +12,19 @@ project(
 find_package(SDL2 REQUIRED)
 
 
+
+# Including this to load images for now
+add_library(stb_image
+    stb_image/stb_image.cpp
+)
+target_include_directories(stb_image PUBLIC
+    stb_image
+)
+
+
+
+
+
 add_executable(simulator
     "src/main.cpp"
     "src/SoftwareRenderer.cpp"
@@ -27,6 +40,7 @@ target_include_directories(simulator SYSTEM PUBLIC
 )
 
 target_link_libraries(simulator
+    stb_image
     ${SDL2_LIBRARIES}
 )
 

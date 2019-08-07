@@ -1,3 +1,8 @@
 
+*.sublime-workspace
+
 # This simulator will stop using glm soon.
 glm/
+
+
+assets/textures/
