@@ -6,12 +6,18 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
+// TODO: REMOVE ME
+#include <stdio.h>
 
 // struct InternalVertex
 // {
 //     // glm::vec4 position;
 //     // glm::vec
 // };
+
+
+
+static int frameTriangleCounter = 0;
 
 
 
@@ -47,6 +53,9 @@ void SoftwareRenderer::Clear(uint8_t r, uint8_t g, uint8_t b)
         m_DepthBuffer[i] = std::numeric_limits<float>::infinity();
         // m_DepthBuffer[i] = 0;
     }
+
+    printf("Draw %d triangles last frame! \n", frameTriangleCounter);
+    frameTriangleCounter = 0;
 }
 
 
@@ -106,82 +115,259 @@ SoftwareRenderer::Texture& SoftwareRenderer::GetActiveTexture()
 
 // TODO: Use fixed point simulation instead of float for fragment shading?
 
-
 void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
 {
+    // Model Space -> World Space -> Camera Space -> [Clip Space] -> NDC Space -> Raster Space
+    glm::mat4 transformMatrix = m_ProjectionMatrix * m_ViewModelMatrix;
+    auto moveToClipSpace = [transformMatrix](Vertex& v) {
+        v.position = transformMatrix * v.position;
+    };
+
+    // Model Space -> World Space -> Camera Space -> Clip Space -> [NDC Space] -> Raster Space
+    auto perspectiveDivide = [](Vertex& v) {
+        v.position.x /= v.position.w;
+        v.position.y /= v.position.w;
+        v.position.z /= v.position.w;
+
+        v.color.r /= v.position.z;
+        v.color.g /= v.position.z;
+        v.color.b /= v.position.z;
+
+        v.texcoords.x /= v.position.z;
+        v.texcoords.y /= v.position.z;
+
+        // (???) For perspective correction (1/z is linear in screen space)
+        v.position.z = 1.0f / v.position.z;
+
+        // v.position.w no longer useful,
+        // can be dropped from the pipeline after this
+    };
+
+    // Model Space -> World Space -> Camera Space -> Clip Space -> NDC Space -> [Raster Space]
+    auto viewportTransform = [this](Vertex& v) {
+        v.position.x = (1.0f + v.position.x) * (m_FrameWidth / 2);
+        v.position.y = (1.0f - v.position.y) * (m_FrameHeight / 2);
+    };
+
+
+    std::vector<Vertex> readyVertices;
+
     for (size_t i = 0; i < vertices.size(); i += 3)
     {
-        DrawTriangle(vertices[i + 0], vertices[i + 1], vertices[i + 2]);
+        Vertex v0 = vertices[i + 0];
+        Vertex v1 = vertices[i + 1];
+        Vertex v2 = vertices[i + 2];
+
+        moveToClipSpace(v0);
+        moveToClipSpace(v1);
+        moveToClipSpace(v2);
+
+        // TODO: CLip
+
+        // auto test = [](const Vertex& v, const char* label) {
+        //     printf("%s.position = (x:%02f, y:%02f, z:%02f, w:%02f) \n", label, v.position.x, v.position.y, v.position.z, v.position.w);
+        //     return  v.position.w >  0            &&
+        //            -v.position.w <= v.position.x &&
+        //             v.position.w >= v.position.x &&
+        //            -v.position.w <= v.position.y &&
+        //             v.position.w >= v.position.y &&
+        //            -v.position.w <= v.position.z &&
+        //             v.position.w >= v.position.z;
+        // };
+        // printf("\n\n");
+        // if ( ! (test(v0, "red") && test(v1, "green") && test(v2, "blue")))
+        // {
+        //     continue;
+        // }
+
+
+
+
+
+
+        // For now, only clipping against the "right" (+X) plane.
+        auto clipLineSegment = [](const Vertex& a, const Vertex& b) -> Vertex {
+            // a inside, b outside
+
+            // TODO: Extract math functions for later (when giving up GLM)
+            auto interpolate = [](float a, float b, float weight) {
+                return a * weight + b * (1.0f - weight);
+            };
+
+            const float n = (b.position.w - b.position.x);
+            const float t = n / (n + a.position.x - a.position.w);
+
+            const float newX = interpolate(a.position.x, b.position.x, t);
+            const float newY = interpolate(a.position.y, b.position.y, t);
+            const float newZ = interpolate(a.position.z, b.position.z, t);
+            const float newW = newX;
+
+            const float newR = interpolate(a.color.r, b.color.r, t);
+            const float newG = interpolate(a.color.g, b.color.g, t);
+            const float newB = interpolate(a.color.b, b.color.b, t);
+
+            const float newU = interpolate(a.texcoords.x, b.texcoords.x, t);
+            const float newV = interpolate(a.texcoords.y, b.texcoords.y, t);
+
+            // printf("Interpolated x coord: %f and %f into %f \n", a.position.x, b.position.x, newX);
+
+            return {
+                { newX, newY, newZ, newW },
+                { newR, newG, newB },
+                { newU, newV }
+            };
+
+        };
+
+        const bool v0_out = v0.position.x > v0.position.w;
+        const bool v1_out = v1.position.x > v1.position.w;
+        const bool v2_out = v2.position.x > v2.position.w;
+
+
+        // TODO: How to optimize this?
+        // (?) https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
+
+        // If the bit is set, then the vertex is inside the clipping plane.
+        // const uint8_t pattern =
+        uint8_t pattern =
+            (v0_out ? 0 : 0b100) |
+            (v1_out ? 0 : 0b010) |
+            (v2_out ? 0 : 0b001);
+
+        // pattern = 7;
+        // printf("pattern = %d  \n", pattern);
+
+        switch (pattern)
+        {
+            case 0b000:
+                // All outside, so skip the triangle.
+                break;
+
+            case 0b011:
+            {
+                // Just v0 out
+                const auto v1_prime = clipLineSegment(v1, v0);
+                const auto v2_prime = clipLineSegment(v2, v0);
+                readyVertices.push_back(v2_prime);
+                readyVertices.push_back(v1_prime);
+                readyVertices.push_back(v1);
+                readyVertices.push_back(v1);
+                readyVertices.push_back(v2);
+                readyVertices.push_back(v2_prime);
+                break;
+            }
+
+            case 0b101:
+            {
+                // Just v1 out
+                const auto v0_prime = clipLineSegment(v0, v1);
+                const auto v2_prime = clipLineSegment(v2, v1);
+                readyVertices.push_back(v0_prime);
+                readyVertices.push_back(v2_prime);
+                readyVertices.push_back(v2);
+                readyVertices.push_back(v2);
+                readyVertices.push_back(v0);
+                readyVertices.push_back(v0_prime);
+                break;
+            }
+
+            case 0b110:
+            {
+                // Just v2 out
+                const auto v0_prime = clipLineSegment(v0, v2);
+                const auto v1_prime = clipLineSegment(v1, v2);
+                readyVertices.push_back(v1_prime);
+                readyVertices.push_back(v0_prime);
+                readyVertices.push_back(v0);
+                readyVertices.push_back(v0);
+                readyVertices.push_back(v1);
+                readyVertices.push_back(v1_prime);
+                break;
+            }
+
+            case 0b001:
+            {
+                // v0 and v1 out
+                const auto v0_prime = clipLineSegment(v2, v0);
+                const auto v1_prime = clipLineSegment(v2, v1);
+                readyVertices.push_back(v0_prime);
+                readyVertices.push_back(v1_prime);
+                readyVertices.push_back(v2);
+                break;
+            }
+
+            case 0b010:
+            {
+                // v0 and v2 out
+                const auto v0_prime = clipLineSegment(v1, v0);
+                const auto v2_prime = clipLineSegment(v1, v2);
+                readyVertices.push_back(v2_prime);
+                readyVertices.push_back(v0_prime);
+                readyVertices.push_back(v1);
+                break;
+            }
+
+            case 0b100:
+            {
+                // v1 and v2 out
+                const auto v1_prime = clipLineSegment(v0, v1);
+                const auto v2_prime = clipLineSegment(v0, v2);
+                readyVertices.push_back(v1_prime);
+                readyVertices.push_back(v2_prime);
+                readyVertices.push_back(v0);
+                break;
+            }
+
+            case 0b111:
+                // All inside, so just draw as-is.
+                readyVertices.push_back(v0);
+                readyVertices.push_back(v1);
+                readyVertices.push_back(v2);
+                break;
+
+            // default:
+                // Impossible, all cases covered.
+                // break;
+        }
+
+        // By "clipping" against an inequality, I think I just set
+        // the coordinate to the extreme of W on that plane (for +X, it's set X=W)
+        //
+        // Or rather, I need to interpolate the other two (three?) coordinates
+        // to find new points which intersect the plane at the previous W,
+        // then create new triangles using them.
+
+
+
     }
+
+    // printf("Ready to draw %d triangles! \n", readyVertices.size() / 3);
+    for (size_t i = 0; i < readyVertices.size(); i += 3)
+    {
+        Vertex v0 = readyVertices[i + 0];
+        Vertex v1 = readyVertices[i + 1];
+        Vertex v2 = readyVertices[i + 2];
+
+        perspectiveDivide(v0);
+        perspectiveDivide(v1);
+        perspectiveDivide(v2);
+
+        viewportTransform(v0);
+        viewportTransform(v1);
+        viewportTransform(v2);
+
+        RenderTriangle(v0, v1, v2);
+    }
+
 }
 
 
-#include <iostream>
 
-void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2)
+
+// Renders a triangle, assuming that it has already been transformed
+// and clipped into the view port.
+void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2)
 {
-
-    glm::mat4 transform = m_ProjectionMatrix * m_ViewModelMatrix;
-
-    // TODO: Go back and study the various pieces of this to figure
-    // out EXACTLY what is going on, then reorganize the code
-    // so that it fits the various pipeline stages better.
-
-    // The "vertex shader", kind of.
-    auto transformVertex = [this, transform](const Vertex& input) -> Vertex
-    {
-        // Model Space -> World Space -> Camera Space -> [Clip Space] -> NDC Space -> Raster Space
-        glm::vec4 position = transform * glm::vec4 {input.position, 1.0};
-
-        // TODO: CLip triangle, rasterize extra triangles as needed.
-        // Must be done in clip space.
-        // Take the inverse of the projection matrix to find clipping planes.
-
-        // Model Space -> World Space -> Camera Space -> Clip Space -> [NDC Space] -> Raster Space
-        position.x /= position.w;
-        position.y /= position.w;
-        position.z /= position.w;
-
-        // Divide vertex attributes by Z (TODO: Should this be W ?)
-        glm::vec3 color = input.color / position.z;
-        glm::vec2 texcoords = input.texcoords / position.z;
-
-        // ???
-        position.z = 1.0 / position.z;
-
-        // Model Space -> World Space -> Camera Space -> Clip Space -> NDC Space -> [Raster Space]
-        position.x = (1.0f + position.x) * (m_FrameWidth / 2);
-        position.y = (1.0f - position.y) * (m_FrameHeight / 2);
-
-        return {position, color, texcoords};
-    };
-
-    Vertex v0_t = transformVertex(v0);
-    Vertex v1_t = transformVertex(v1);
-    Vertex v2_t = transformVertex(v2);
-
-    // std::cout <<
-    //     "\nv0: (" << v0_position.x <<
-    //     ", " << v0_position.y <<
-    //     ", " << v0_position.z <<
-    //     ", " << v0_position.w <<
-    //     ")" << std::endl;
-
-    // std::cout <<
-    //     "v1: (" << v1_position.x <<
-    //     ", " << v1_position.y <<
-    //     ", " << v1_position.z <<
-    //     ", " << v1_position.w <<
-    //     ")" << std::endl;
-
-    // std::cout <<
-    //     "v2: (" << v2_position.x <<
-    //     ", " << v2_position.y <<
-    //     ", " << v2_position.z <<
-    //     ", " << v2_position.w <<
-    //     ")\n" << std::endl;
-
-
     auto edgeFunction = [](const glm::vec2& p, const glm::vec2& p1, const glm::vec2& p2)
     {
         const glm::vec2 a { p2 - p1 };
@@ -190,11 +376,53 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
     };
 
 
+    const float totalArea = edgeFunction({v0.position.x, v0.position.y}, {v1.position.x, v1.position.y}, {v2.position.x, v2.position.y});
+    if (totalArea <= 0)
+    {
+        // Cull back facing triangles
+        return;
+    }
+
+
+        // auto test = [](const Vertex& v, const char* label) {
+        //     printf("%s.position = (x:%02f, y:%02f, z:%02f, w:%02f) \n", label, v.position.x, v.position.y, v.position.z, v.position.w);
+        //     return  v.position.w >  0            &&
+        //            -v.position.w <= v.position.x &&
+        //             v.position.w >= v.position.x &&
+        //            -v.position.w <= v.position.y &&
+        //             v.position.w >= v.position.y &&
+        //            -v.position.w <= v.position.z &&
+        //             v.position.w >= v.position.z;
+        // };
+        // printf("\n\n");
+        // if ( ! (test(v0, "red") && test(v1, "green") && test(v2, "blue")))
+        // {
+        //     // return;
+        // }
+
+    // printf(
+    //     "v0: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
+    //     "v1: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
+    //     "v2: (x=%02f, y=%02f, z=%02f, w=%02f) \n\n",
+    //     v0.position.x, v0.position.y, v0.position.z, v0.position.w,
+    //     v1.position.x, v1.position.y, v1.position.z, v1.position.w,
+    //     v2.position.x, v2.position.y, v2.position.z, v2.position.w
+    // );
+
+
+
+    // TODO: Go back and study the various pieces of this to figure
+    // out EXACTLY what is going on, then reorganize the code
+    // so that it fits the various pipeline stages better.
+
+
+
+
     // TODO: Use a smarter algorithm than a bounding box.
-    uint32_t xmin = static_cast<uint32_t>(std::round(std::min({v0_t.position.x, v1_t.position.x, v2_t.position.x})));
-    uint32_t xmax = static_cast<uint32_t>(std::round(std::max({v0_t.position.x, v1_t.position.x, v2_t.position.x})));
-    uint32_t ymin = static_cast<uint32_t>(std::round(std::min({v0_t.position.y, v1_t.position.y, v2_t.position.y})));
-    uint32_t ymax = static_cast<uint32_t>(std::round(std::max({v0_t.position.y, v1_t.position.y, v2_t.position.y})));
+    uint32_t xmin = static_cast<uint32_t>(std::round(std::min({v0.position.x, v1.position.x, v2.position.x})));
+    uint32_t xmax = static_cast<uint32_t>(std::round(std::max({v0.position.x, v1.position.x, v2.position.x})));
+    uint32_t ymin = static_cast<uint32_t>(std::round(std::min({v0.position.y, v1.position.y, v2.position.y})));
+    uint32_t ymax = static_cast<uint32_t>(std::round(std::max({v0.position.y, v1.position.y, v2.position.y})));
 
     // // TODO: Remove this once clipping is implemented
     // xmin = std::max(xmin, 0U);
@@ -211,6 +439,27 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
     //              "y on " << xmin << " to " << xmax << "\n" << std::endl;
 
 
+
+
+    glm::vec3 debugColor;
+    switch (frameTriangleCounter % 12) {
+        case 0: debugColor = {1.0, 0.0, 0.0}; break;
+        case 1: debugColor = {0.0, 1.0, 0.0}; break;
+        case 2: debugColor = {0.0, 0.0, 1.0}; break;
+        case 3: debugColor = {1.0, 1.0, 0.0}; break;
+        case 4: debugColor = {1.0, 0.0, 1.0}; break;
+        case 5: debugColor = {0.0, 1.0, 1.0}; break;
+        case 6: debugColor = {0.5, 0.0, 0.0}; break;
+        case 7: debugColor = {0.0, 0.5, 0.0}; break;
+        case 8: debugColor = {0.0, 0.0, 0.5}; break;
+        case 9: debugColor = {0.5, 0.5, 0.0}; break;
+        case 10: debugColor = {0.5, 0.0, 0.5}; break;
+        case 11: debugColor = {0.0, 0.5, 0.5}; break;
+    }
+    frameTriangleCounter += 1;
+
+
+
     for (uint32_t y = ymin; y <= ymax; y++)
     // for (uint32_t y = 0; y < m_FrameHeight; y++)
     {
@@ -218,15 +467,16 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
         // for (uint32_t x = 0; x < m_FrameWidth; x++)
         {
 
-            const float area_v0_v1_p = edgeFunction({x, y}, {v0_t.position.x, v0_t.position.y}, {v1_t.position.x, v1_t.position.y});
-            const float area_v1_v2_p = edgeFunction({x, y}, {v1_t.position.x, v1_t.position.y}, {v2_t.position.x, v2_t.position.y});
-            const float area_v2_v0_p = edgeFunction({x, y}, {v2_t.position.x, v2_t.position.y}, {v0_t.position.x, v0_t.position.y});
+            const float area_v0_v1_p = edgeFunction({x, y}, {v0.position.x, v0.position.y}, {v1.position.x, v1.position.y});
+            const float area_v1_v2_p = edgeFunction({x, y}, {v1.position.x, v1.position.y}, {v2.position.x, v2.position.y});
+            const float area_v2_v0_p = edgeFunction({x, y}, {v2.position.x, v2.position.y}, {v0.position.x, v0.position.y});
 
             // TODO: Test for top and left edges to prevent drawing over the same edge of adjacent triangles
             // Assumes clockwise winding for front faces:
-            if (area_v0_v1_p >= 0 && area_v1_v2_p >= 0 && area_v2_v0_p >= 0)
+            if (area_v0_v1_p > 0 && area_v1_v2_p > 0 && area_v2_v0_p > 0)
             {
-                const float totalArea = edgeFunction({v0_t.position.x, v0_t.position.y}, {v1_t.position.x, v1_t.position.y}, {v2_t.position.x, v2_t.position.y});
+                // printf("YES @ (%d, %d) \n", x, y);
+
                 // w0 not needed due to optimization (see below)
                 const float w1 = area_v2_v0_p / totalArea;
                 const float w2 = area_v0_v1_p / totalArea;
@@ -255,7 +505,7 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
                 float lastDepth = m_DepthBuffer[pixelIndex];
 
                 // Take the reciprocal for perspective correction
-                float depth = 1.0 / mixBarycentric(v0_t.position.z, v1_t.position.z, v2_t.position.z);
+                float depth = 1.0 / mixBarycentric(v0.position.z, v1.position.z, v2.position.z);
 
                 // std::cout << "depth = " << depth << std::endl;
 
@@ -268,8 +518,8 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
                 {
                     // TODO: Perspective correction
                     auto& rTexture = GetActiveTexture();
-                    float mixedTexCoordU = std::fmod(mixBarycentric(v0_t.texcoords.x, v1_t.texcoords.x, v2_t.texcoords.x) * depth, 1.0f);
-                    float mixedTexCoordV = std::fmod(mixBarycentric(v0_t.texcoords.y, v1_t.texcoords.y, v2_t.texcoords.y) * depth, 1.0f);
+                    float mixedTexCoordU = std::fmod(mixBarycentric(v0.texcoords.x, v1.texcoords.x, v2.texcoords.x) * depth, 1.0f);
+                    float mixedTexCoordV = std::fmod(mixBarycentric(v0.texcoords.y, v1.texcoords.y, v2.texcoords.y) * depth, 1.0f);
                     // TODO: Better filtering, mipmaps, texture repeating, clamping, etc.
                     uint32_t sampleXCoord = static_cast<uint32_t>(rTexture.width * mixedTexCoordU);
                     uint32_t sampleYCoord = static_cast<uint32_t>(rTexture.height * (1.0 - mixedTexCoordV));
@@ -282,6 +532,8 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
                     textureColorR = rTexture.data[sampleIndex + 2];
                     textureColorA = rTexture.data[sampleIndex + 3];
                 }
+
+
 
                 // Alpha Test
                 if (textureColorA < 0.01)
@@ -302,23 +554,25 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
                 }
 
 
-                float vertexColorR = mixBarycentric(v0_t.color.r, v1_t.color.r, v2_t.color.r) * depth;
-                float vertexColorG = mixBarycentric(v0_t.color.g, v1_t.color.g, v2_t.color.g) * depth;
-                float vertexColorB = mixBarycentric(v0_t.color.b, v1_t.color.b, v2_t.color.b) * depth;
+                // float vertexColorR = mixBarycentric(v0.color.r, v1.color.r, v2.color.r) * depth;
+                // float vertexColorG = mixBarycentric(v0.color.g, v1.color.g, v2.color.g) * depth;
+                // float vertexColorB = mixBarycentric(v0.color.b, v1.color.b, v2.color.b) * depth;
+
+                float vertexColorR = debugColor.r;
+                float vertexColorG = debugColor.g;
+                float vertexColorB = debugColor.b;
 
 
                 float pixelColorR = vertexColorR;
                 float pixelColorG = vertexColorG;
                 float pixelColorB = vertexColorB;
-
                 if (m_ActiveTextureID != 0)
                 {
-                    float percentTexture = 1.0;
+                    float percentTexture = 0.5;
                     pixelColorR = (1.0 - percentTexture) * pixelColorR + percentTexture * textureColorR;
                     pixelColorG = (1.0 - percentTexture) * pixelColorG + percentTexture * textureColorG;
                     pixelColorB = (1.0 - percentTexture) * pixelColorB + percentTexture * textureColorB;
                 }
-
 
                 m_Framebuffer[pixelIndex * 4 + 0] = static_cast<uint8_t>(0xff * pixelColorB);
                 m_Framebuffer[pixelIndex * 4 + 1] = static_cast<uint8_t>(0xff * pixelColorG);
@@ -326,10 +580,9 @@ void SoftwareRenderer::DrawTriangle(const Vertex& v0, const Vertex& v1, const Ve
                 m_Framebuffer[pixelIndex * 4 + 3] = 0xff;  // TODO: Alpha Blending
             }
 
+
         }
     }
-
-
 }
 
 

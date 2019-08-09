@@ -13,6 +13,9 @@ find_package(SDL2 REQUIRED)
 
 
 
+
+
+
 # Including this to load images for now
 add_library(stb_image
     stb_image/stb_image.cpp
@@ -20,6 +23,9 @@ add_library(stb_image
 target_include_directories(stb_image PUBLIC
     stb_image
 )
+
+
+
 
 
 
@@ -44,6 +50,10 @@ target_link_libraries(simulator
     ${SDL2_LIBRARIES}
 )
 
+
+
+# TODO: Do this properly
+# https://stackoverflow.com/questions/7724569/debug-vs-release-in-cmake
 target_compile_options(simulator PRIVATE
     -std=c++17
     -pedantic
@@ -55,7 +65,29 @@ target_compile_options(simulator PRIVATE
     -Wcast-qual
     -Wold-style-cast
     -Wfloat-equal
-    -fdiagnostics-color
 
+    -fdiagnostics-color
     -O2
+    # -g
 )
+
+
+
+
+
+# TODO: Compile various driver backends as library targets
+#
+#   - OpenGL translation layer
+#   - Software renderer
+#   - Verilated simulation
+#   - USB comms to a real FPGA target
+#
+# These will link to an executable
+
+
+# add_library(software_renderer
+#     "src/SoftwareRenderer.cpp"
+# )
+# target_include_directories(software_renderer PUBLIC
+#     # "src"
+# )

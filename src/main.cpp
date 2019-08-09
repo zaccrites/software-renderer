@@ -63,8 +63,8 @@ std::vector<Vertex> MakeMesh()
     //
     // TOP
     mesh.push_back({top_downLeft, red, tex_downLeft});
-    mesh.push_back({top_downRight, red, tex_downRight});
-    mesh.push_back({top_upLeft, red, tex_upLeft});
+    mesh.push_back({top_downRight, green, tex_downRight});
+    mesh.push_back({top_upLeft, blue, tex_upLeft});
     //
     mesh.push_back({top_downRight, red, tex_downRight});
     mesh.push_back({top_upRight, red, tex_upRight});
@@ -167,7 +167,13 @@ uint32_t MakeTextureFromFile(SoftwareRenderer& rContext, const char* filename)
     int width;
     int height;
     int comp;
+
     uint8_t* pRawData = stbi_load(filename, &width, &height, &comp, STBI_rgb_alpha);
+    if (pRawData == nullptr)
+    {
+        return 0;
+    }
+
     // TODO: assert(comp == 4)  ??
 
     std::vector<uint8_t> data;
@@ -234,10 +240,25 @@ int main(int argc, char** argv)
 
 
     auto texture = MakeCheckerboardTexture(context);
-    auto oliveTexture = MakeTextureFromFile(context, "/home/zac/gpu/assets/olive1.png");
+    auto oliveTexture = MakeTextureFromFile(context, "/home/zac/gpu/assets/textures/olive2.png");
+    if ( ! oliveTexture)
+    {
+        std::cerr << "Failed to read texture file!" << std::endl;
+        return 1;
+    }
 
     auto cube1 = MakeMesh();
     auto cube2 = MakeMesh();
+
+
+
+    float cameraRoll = 0.0;
+    float cameraPitch = M_PI / 4;
+    float cameraYaw = 0.0;
+
+    float cameraX = 13.7;
+    float cameraY = 10.0;
+    float cameraZ = 10.0;
 
 
     float t = 0;
@@ -258,9 +279,23 @@ int main(int argc, char** argv)
 
                 case SDL_KEYDOWN:
                 {
-                    if (event.key.keysym.sym == SDLK_ESCAPE || event.key.keysym.sym == SDLK_q)
+                    switch (event.key.keysym.sym)
                     {
-                        isRunning = false;
+                        case SDLK_ESCAPE:
+                        case SDLK_q:
+                            isRunning = false;
+                            break;
+
+                        case SDLK_LEFT:
+                            cameraX -= 0.1f;
+                            break;
+
+                        case SDLK_RIGHT:
+                            cameraX += 0.1f;
+                            break;
+
+                        default:
+                            break;
                     }
                     break;
                 }
@@ -271,43 +306,62 @@ int main(int argc, char** argv)
         glm::mat4 model1 {1.0};
         model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
         model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
+        // model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0)), glm::vec3 {0.0, 1.0, 0.0});
 
         glm::mat4 model2 {1.0};
-        model2 = glm::rotate(model2, static_cast<float>(glm::radians(45.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
-        model2 = glm::translate(model2, glm::vec3 {5.0, 0.0, 0.0});
+        model2 = glm::rotate(model2, static_cast<float>(glm::radians(90.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
+        model2 = glm::translate(model2, glm::vec3 {10.0, 0.0, 0.0});
         model2 = glm::rotate(model2, static_cast<float>(glm::radians(180.0)), glm::vec3 {0.0, 1.0, 0.0});
 
         context.SetProjectionMatrix(glm::perspective(
             glm::radians(45.0f),
             static_cast<float>(FRAME_WIDTH) / static_cast<float>(FRAME_HEIGHT),
             5.0f,
-            20.0f
+            50.0f
         ));
 
-        float cameraRadius = 20.0;
+        // Take the inverse of the projection matrix to find clipping planes.
+        //
+        // Compare bounding spheres of potential objects to draw with frustum
+        // planes to do coarse pruning of objects to draw to draw.
+
+
+        float cameraRadius = 30.0;
         float cameraAngle = 45.0;
         // cameraAngle *= std::sin(glm::radians(t * 90.0));
         glm::vec3 eye = {
-            0.0,
+            -cameraX,
             cameraRadius * std::sin(glm::radians(cameraAngle)),
             cameraRadius * std::cos(glm::radians(cameraAngle))
         };
+        std::cout << cameraX << std::endl;
 
 
-        glm::vec3 target = {0.0, 0.0, 0.0};
+
+
+        glm::vec3 target = {-cameraX, 0.0, 0.0};
         glm::vec3 up = {0.0, 1.0, 0.0};
-        glm::mat4 view = glm::lookAt(eye, target, up);
+        // glm::mat4 view = glm::lookAt(eye, target, up);
+
+
+        glm::mat4 view;
+        view = glm::rotate(view, -cameraRoll, {0.0, 0.0, 1.0});
+        view = glm::rotate(view, -cameraPitch, {1.0, 0.0, 0.0});
+        view = glm::rotate(view, -cameraYaw, {0.0, 1.0, 0.0});
+        view = glm::translate(view, {-cameraX, -cameraY, -cameraZ});
+
+        view = glm::lookAt(eye, target, up);
 
 
         context.Clear(0x64, 0x95, 0xed);
 
 
 
-        context.UseTexture(oliveTexture);
+        context.UseTexture(texture);
         context.SetViewModelMatrix(view * model1);
         context.DrawTriangleList(cube1);
 
-        context.UseTexture(texture);
+        context.UseTexture(oliveTexture);
         context.SetViewModelMatrix(view * model2);
         context.DrawTriangleList(cube2);
 

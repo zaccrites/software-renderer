@@ -50,7 +50,8 @@ private:
         std::vector<float> data;
     };
 
-    void DrawTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2);
+    // TODO: Fix naming issue
+    void RenderTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2);
 
     Texture& GetActiveTexture();
 
