@@ -208,9 +208,9 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
         float newW;
         switch (direction)
         {
-        case Direction::X: newW = newX; break;
-        case Direction::Y: newW = newY; break;
-        case Direction::Z: newW = newZ; break;
+        case Direction::X: newW = positive ? newX : -newX; break;
+        case Direction::Y: newW = positive ? newY : -newY; break;
+        case Direction::Z: newW = positive ? newZ : -newZ; break;
         }
 
         const float newR = interpolate(a.color.r, b.color.r, t);
