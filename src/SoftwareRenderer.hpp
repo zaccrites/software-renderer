@@ -51,7 +51,8 @@ private:
     };
 
     // TODO: Fix naming issue
-    void RenderTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2);
+    // void RenderTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2);
+    void RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2);
 
     Texture& GetActiveTexture();
 

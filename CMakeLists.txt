@@ -67,8 +67,8 @@ target_compile_options(simulator PRIVATE
     -Wfloat-equal
 
     -fdiagnostics-color
-    -O2
-    # -g
+    # -O2
+    -g
 )
 
 

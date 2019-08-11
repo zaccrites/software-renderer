@@ -54,7 +54,7 @@ void SoftwareRenderer::Clear(uint8_t r, uint8_t g, uint8_t b)
         // m_DepthBuffer[i] = 0;
     }
 
-    printf("Draw %d triangles last frame! \n", frameTriangleCounter);
+    printf("Drew %d triangles last frame! \n", frameTriangleCounter);
     frameTriangleCounter = 0;
 }
 
@@ -115,6 +115,7 @@ SoftwareRenderer::Texture& SoftwareRenderer::GetActiveTexture()
 
 // TODO: Use fixed point simulation instead of float for fragment shading?
 
+
 void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
 {
     // Model Space -> World Space -> Camera Space -> [Clip Space] -> NDC Space -> Raster Space
@@ -122,6 +123,360 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
     auto moveToClipSpace = [transformMatrix](Vertex& v) {
         v.position = transformMatrix * v.position;
     };
+
+    // // Model Space -> World Space -> Camera Space -> Clip Space -> [NDC Space] -> Raster Space
+    // auto perspectiveDivide = [](Vertex& v) {
+    //     v.position.x /= v.position.w;
+    //     v.position.y /= v.position.w;
+    //     v.position.z /= v.position.w;
+
+    //     v.color.r /= v.position.z;
+    //     v.color.g /= v.position.z;
+    //     v.color.b /= v.position.z;
+
+    //     v.texcoords.x /= v.position.z;
+    //     v.texcoords.y /= v.position.z;
+
+    //     // (???) For perspective correction (1/z is linear in screen space)
+    //     v.position.z = 1.0f / v.position.z;
+
+    //     // v.position.w no longer useful,
+    //     // can be dropped from the pipeline after this
+    // };
+
+    // // Model Space -> World Space -> Camera Space -> Clip Space -> NDC Space -> [Raster Space]
+    // auto viewportTransform = [this](Vertex& v) {
+    //     v.position.x = (1.0f + v.position.x) * (m_FrameWidth / 2);
+    //     v.position.y = (1.0f - v.position.y) * (m_FrameHeight / 2);
+    // };
+
+
+
+
+    enum class Direction { X, Y, Z};
+
+    // For now, only clipping against the "right" (+X) plane.
+    auto clipLineSegment = [](const Vertex& a, const Vertex& b, Direction direction, bool positive) -> Vertex {
+        // a inside, b outside
+
+        // TODO: Extract math functions for later (when giving up GLM)
+        auto interpolate = [](float a, float b, float weight) {
+            return a * weight + b * (1.0f - weight);
+        };
+
+        float coordinateA;
+        float coordinateB;
+        switch (direction)
+        {
+        case Direction::X:
+            coordinateA = a.position.x;
+            coordinateB = b.position.x;
+            break;
+        case Direction::Y:
+            coordinateA = a.position.y;
+            coordinateB = b.position.y;
+            break;
+        case Direction::Z:
+            coordinateA = a.position.z;
+            coordinateB = b.position.z;
+            break;
+        }
+
+
+        // TODO: Invariant: 0 <= *.W
+        // If it's not, what do we do?
+
+        if (a.position.w < 0 || b.position.w < 0)
+        {
+            printf("WARNING: a.position.w == %02f, b.position.w == %02f \n", a.position.w, b.position.w);
+        }
+
+
+
+        // TODO: Different for Z near/far clipping?
+        float wClipA = positive ? a.position.w : -a.position.w;
+        float wClipB = positive ? b.position.w : -b.position.w;
+
+
+
+        const float n = (wClipB - coordinateB);
+        const float t = n / (n + coordinateA - wClipA);
+
+        const float newX = interpolate(a.position.x, b.position.x, t);
+        const float newY = interpolate(a.position.y, b.position.y, t);
+        const float newZ = interpolate(a.position.z, b.position.z, t);
+        float newW;
+        switch (direction)
+        {
+        case Direction::X: newW = newX; break;
+        case Direction::Y: newW = newY; break;
+        case Direction::Z: newW = newZ; break;
+        }
+
+        const float newR = interpolate(a.color.r, b.color.r, t);
+        const float newG = interpolate(a.color.g, b.color.g, t);
+        const float newB = interpolate(a.color.b, b.color.b, t);
+
+        const float newU = interpolate(a.texcoords.x, b.texcoords.x, t);
+        const float newV = interpolate(a.texcoords.y, b.texcoords.y, t);
+
+        // printf("Interpolated x coord: %f and %f into %f \n", a.position.x, b.position.x, newX);
+
+
+        printf(
+            "new (x=%02f, y=%02f, z=%02f, w=%02f) \n"
+            "    (r=%02f, g=%02f, b=%02f) \n"
+            "    (u=%02f, v=%02f) \n",
+            newX, newY, newZ, newW,
+            newR, newG, newB,
+            newU, newV
+        );
+
+
+
+        return {
+            { newX, newY, newZ, newW },
+            { newR, newG, newB },
+            { newU, newV }
+        };
+
+    };
+
+
+
+    // TODO: Avoid copying vertices? Make local VBOs to use instead?
+    // This algorithm modifies the vertices, so it might be unavoidable to
+    // make a copy to clip in.
+    std::vector<Vertex> clipVertices;
+    for (auto v : vertices)
+    {
+        moveToClipSpace(v);
+        clipVertices.push_back(v);
+    }
+
+    std::vector<Vertex> newClipVertices;
+
+    // TODO: Clean this up
+    for (int planeNumber = 0; planeNumber < 6; planeNumber++)
+    {
+        // if (planeNumber > 1) break;
+
+
+
+        for (size_t i = 0; i < clipVertices.size(); i += 3)
+        {
+            Vertex v0 = clipVertices[i + 0];
+            Vertex v1 = clipVertices[i + 1];
+            Vertex v2 = clipVertices[i + 2];
+
+            // TODO: Move this out. This doesn't need to be a lambda.
+            auto clipTriangle = [&newClipVertices, clipLineSegment, v0, v1, v2](Direction direction, bool positive) {
+
+                bool v0_out;
+                bool v1_out;
+                bool v2_out;
+                switch (direction)
+                {
+                case Direction::X:
+                    v0_out = positive ? v0.position.x > v0.position.w : v0.position.x < -v0.position.w;
+                    v1_out = positive ? v1.position.x > v1.position.w : v1.position.x < -v1.position.w;
+                    v2_out = positive ? v2.position.x > v2.position.w : v2.position.x < -v2.position.w;
+                    break;
+
+                case Direction::Y:
+                    v0_out = positive ? v0.position.y > v0.position.w : v0.position.y < -v0.position.w;
+                    v1_out = positive ? v1.position.y > v1.position.w : v1.position.y < -v1.position.w;
+                    v2_out = positive ? v2.position.y > v2.position.w : v2.position.y < -v2.position.w;
+                    break;
+
+                case Direction::Z:
+                    v0_out = positive ? v0.position.z > v0.position.w : v0.position.z < -v0.position.w;
+                    v1_out = positive ? v1.position.z > v1.position.w : v1.position.z < -v1.position.w;
+                    v2_out = positive ? v2.position.z > v2.position.w : v2.position.z < -v2.position.w;
+                    break;
+                }
+
+                // TODO: How to optimize this?
+                // (?) https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
+
+                // If the bit is set, then the vertex is inside the clipping plane.
+                // const uint8_t pattern =
+                uint8_t pattern =
+                    (v0_out ? 0 : 0b100) |
+                    (v1_out ? 0 : 0b010) |
+                    (v2_out ? 0 : 0b001);
+
+                // pattern = 7;
+
+                if ( ! positive)
+                    printf("pattern = %d  \n", pattern);
+
+                switch (pattern)
+                {
+                    case 0b000:
+                        // All outside, so skip the triangle.
+                        break;
+
+                    case 0b011:
+                    {
+                        // Just v0 out
+                        const auto v1_prime = clipLineSegment(v1, v0, direction, positive);
+                        const auto v2_prime = clipLineSegment(v2, v0, direction, positive);
+                        newClipVertices.push_back(v2_prime);
+                        newClipVertices.push_back(v1_prime);
+                        newClipVertices.push_back(v1);
+                        newClipVertices.push_back(v1);
+                        newClipVertices.push_back(v2);
+                        newClipVertices.push_back(v2_prime);
+                        break;
+                    }
+
+                    case 0b101:
+                    {
+                        // Just v1 out
+                        const auto v0_prime = clipLineSegment(v0, v1, direction, positive);
+                        const auto v2_prime = clipLineSegment(v2, v1, direction, positive);
+                        newClipVertices.push_back(v0_prime);
+                        newClipVertices.push_back(v2_prime);
+                        newClipVertices.push_back(v2);
+                        newClipVertices.push_back(v2);
+                        newClipVertices.push_back(v0);
+                        newClipVertices.push_back(v0_prime);
+                        break;
+                    }
+
+                    case 0b110:
+                    {
+                        // Just v2 out
+                        const auto v0_prime = clipLineSegment(v0, v2, direction, positive);
+                        const auto v1_prime = clipLineSegment(v1, v2, direction, positive);
+                        newClipVertices.push_back(v1_prime);
+                        newClipVertices.push_back(v0_prime);
+                        newClipVertices.push_back(v0);
+                        newClipVertices.push_back(v0);
+                        newClipVertices.push_back(v1);
+                        newClipVertices.push_back(v1_prime);
+                        break;
+                    }
+
+                    case 0b001:
+                    {
+                        // v0 and v1 out
+                        const auto v0_prime = clipLineSegment(v2, v0, direction, positive);
+                        const auto v1_prime = clipLineSegment(v2, v1, direction, positive);
+                        newClipVertices.push_back(v0_prime);
+                        newClipVertices.push_back(v1_prime);
+                        newClipVertices.push_back(v2);
+                        break;
+                    }
+
+                    case 0b010:
+                    {
+                        // v0 and v2 out
+                        const auto v0_prime = clipLineSegment(v1, v0, direction, positive);
+                        const auto v2_prime = clipLineSegment(v1, v2, direction, positive);
+                        newClipVertices.push_back(v2_prime);
+                        newClipVertices.push_back(v0_prime);
+                        newClipVertices.push_back(v1);
+                        break;
+                    }
+
+                    case 0b100:
+                    {
+                        // v1 and v2 out
+                        const auto v1_prime = clipLineSegment(v0, v1, direction, positive);
+                        const auto v2_prime = clipLineSegment(v0, v2, direction, positive);
+                        newClipVertices.push_back(v1_prime);
+                        newClipVertices.push_back(v2_prime);
+                        newClipVertices.push_back(v0);
+                        break;
+                    }
+
+                    case 0b111:
+                        // All inside, so just draw as-is.
+                        newClipVertices.push_back(v0);
+                        newClipVertices.push_back(v1);
+                        newClipVertices.push_back(v2);
+                        break;
+
+                    default:
+                        assert(false);
+                        break;
+                }
+            };  // clipTriangle
+
+            printf("planeNumber = %d \n", planeNumber);
+            switch (planeNumber)
+            {
+            case 0:
+                clipTriangle(Direction::X, true);
+                // newClipVertices = clipVertices;  // copy
+                break;
+            case 1:
+                clipTriangle(Direction::X, false);
+                // newClipVertices = clipVertices;  // copy
+                break;
+            case 2:
+                clipTriangle(Direction::Y, true);
+                // newClipVertices = clipVertices;  // copy
+                break;
+            case 3:
+                clipTriangle(Direction::Y, false);
+                // newClipVertices = clipVertices;  // copy
+                break;
+            case 4:
+                // TODO: Z clipping
+                // clipTriangle(Direction::Z, true);
+                newClipVertices = clipVertices;  // copy
+                break;
+            case 5:
+                // clipTriangle(Direction::Z, false);
+                newClipVertices = clipVertices;  // copy
+                break;
+            default:
+                assert(false);
+                break;
+            }
+
+        }
+
+
+        // After clipping each triangle against a plane,
+        // move the new vertices back into the original
+        // list to be processed again against a different plane.
+        newClipVertices.swap(clipVertices);
+        newClipVertices.clear();
+
+    }
+
+    printf("Ready to draw %d triangles! \n", clipVertices.size() / 3);
+    for (size_t i = 0; i < clipVertices.size(); i += 3)
+    {
+        Vertex v0 = clipVertices[i + 0];
+        Vertex v1 = clipVertices[i + 1];
+        Vertex v2 = clipVertices[i + 2];
+
+        // perspectiveDivide(v0);
+        // perspectiveDivide(v1);
+        // perspectiveDivide(v2);
+
+        // viewportTransform(v0);
+        // viewportTransform(v1);
+        // viewportTransform(v2);
+
+        RenderTriangle(v0, v1, v2);
+    }
+
+}
+
+
+
+
+// Renders a triangle, assuming that it has already been transformed
+// and clipped into the view port.
+// void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2)
+void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
+{
 
     // Model Space -> World Space -> Camera Space -> Clip Space -> [NDC Space] -> Raster Space
     auto perspectiveDivide = [](Vertex& v) {
@@ -150,224 +505,18 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
     };
 
 
-    std::vector<Vertex> readyVertices;
+    Vertex v0_copy = v0;
+    Vertex v1_copy = v1;
+    Vertex v2_copy = v2;
 
-    for (size_t i = 0; i < vertices.size(); i += 3)
-    {
-        Vertex v0 = vertices[i + 0];
-        Vertex v1 = vertices[i + 1];
-        Vertex v2 = vertices[i + 2];
+    perspectiveDivide(v0);
+    perspectiveDivide(v1);
+    perspectiveDivide(v2);
 
-        moveToClipSpace(v0);
-        moveToClipSpace(v1);
-        moveToClipSpace(v2);
+    viewportTransform(v0);
+    viewportTransform(v1);
+    viewportTransform(v2);
 
-        // TODO: CLip
-
-        // auto test = [](const Vertex& v, const char* label) {
-        //     printf("%s.position = (x:%02f, y:%02f, z:%02f, w:%02f) \n", label, v.position.x, v.position.y, v.position.z, v.position.w);
-        //     return  v.position.w >  0            &&
-        //            -v.position.w <= v.position.x &&
-        //             v.position.w >= v.position.x &&
-        //            -v.position.w <= v.position.y &&
-        //             v.position.w >= v.position.y &&
-        //            -v.position.w <= v.position.z &&
-        //             v.position.w >= v.position.z;
-        // };
-        // printf("\n\n");
-        // if ( ! (test(v0, "red") && test(v1, "green") && test(v2, "blue")))
-        // {
-        //     continue;
-        // }
-
-
-
-
-
-
-        // For now, only clipping against the "right" (+X) plane.
-        auto clipLineSegment = [](const Vertex& a, const Vertex& b) -> Vertex {
-            // a inside, b outside
-
-            // TODO: Extract math functions for later (when giving up GLM)
-            auto interpolate = [](float a, float b, float weight) {
-                return a * weight + b * (1.0f - weight);
-            };
-
-            const float n = (b.position.w - b.position.x);
-            const float t = n / (n + a.position.x - a.position.w);
-
-            const float newX = interpolate(a.position.x, b.position.x, t);
-            const float newY = interpolate(a.position.y, b.position.y, t);
-            const float newZ = interpolate(a.position.z, b.position.z, t);
-            const float newW = newX;
-
-            const float newR = interpolate(a.color.r, b.color.r, t);
-            const float newG = interpolate(a.color.g, b.color.g, t);
-            const float newB = interpolate(a.color.b, b.color.b, t);
-
-            const float newU = interpolate(a.texcoords.x, b.texcoords.x, t);
-            const float newV = interpolate(a.texcoords.y, b.texcoords.y, t);
-
-            // printf("Interpolated x coord: %f and %f into %f \n", a.position.x, b.position.x, newX);
-
-            return {
-                { newX, newY, newZ, newW },
-                { newR, newG, newB },
-                { newU, newV }
-            };
-
-        };
-
-        const bool v0_out = v0.position.x > v0.position.w;
-        const bool v1_out = v1.position.x > v1.position.w;
-        const bool v2_out = v2.position.x > v2.position.w;
-
-
-        // TODO: How to optimize this?
-        // (?) https://en.wikipedia.org/wiki/Sutherland%E2%80%93Hodgman_algorithm
-
-        // If the bit is set, then the vertex is inside the clipping plane.
-        // const uint8_t pattern =
-        uint8_t pattern =
-            (v0_out ? 0 : 0b100) |
-            (v1_out ? 0 : 0b010) |
-            (v2_out ? 0 : 0b001);
-
-        // pattern = 7;
-        // printf("pattern = %d  \n", pattern);
-
-        switch (pattern)
-        {
-            case 0b000:
-                // All outside, so skip the triangle.
-                break;
-
-            case 0b011:
-            {
-                // Just v0 out
-                const auto v1_prime = clipLineSegment(v1, v0);
-                const auto v2_prime = clipLineSegment(v2, v0);
-                readyVertices.push_back(v2_prime);
-                readyVertices.push_back(v1_prime);
-                readyVertices.push_back(v1);
-                readyVertices.push_back(v1);
-                readyVertices.push_back(v2);
-                readyVertices.push_back(v2_prime);
-                break;
-            }
-
-            case 0b101:
-            {
-                // Just v1 out
-                const auto v0_prime = clipLineSegment(v0, v1);
-                const auto v2_prime = clipLineSegment(v2, v1);
-                readyVertices.push_back(v0_prime);
-                readyVertices.push_back(v2_prime);
-                readyVertices.push_back(v2);
-                readyVertices.push_back(v2);
-                readyVertices.push_back(v0);
-                readyVertices.push_back(v0_prime);
-                break;
-            }
-
-            case 0b110:
-            {
-                // Just v2 out
-                const auto v0_prime = clipLineSegment(v0, v2);
-                const auto v1_prime = clipLineSegment(v1, v2);
-                readyVertices.push_back(v1_prime);
-                readyVertices.push_back(v0_prime);
-                readyVertices.push_back(v0);
-                readyVertices.push_back(v0);
-                readyVertices.push_back(v1);
-                readyVertices.push_back(v1_prime);
-                break;
-            }
-
-            case 0b001:
-            {
-                // v0 and v1 out
-                const auto v0_prime = clipLineSegment(v2, v0);
-                const auto v1_prime = clipLineSegment(v2, v1);
-                readyVertices.push_back(v0_prime);
-                readyVertices.push_back(v1_prime);
-                readyVertices.push_back(v2);
-                break;
-            }
-
-            case 0b010:
-            {
-                // v0 and v2 out
-                const auto v0_prime = clipLineSegment(v1, v0);
-                const auto v2_prime = clipLineSegment(v1, v2);
-                readyVertices.push_back(v2_prime);
-                readyVertices.push_back(v0_prime);
-                readyVertices.push_back(v1);
-                break;
-            }
-
-            case 0b100:
-            {
-                // v1 and v2 out
-                const auto v1_prime = clipLineSegment(v0, v1);
-                const auto v2_prime = clipLineSegment(v0, v2);
-                readyVertices.push_back(v1_prime);
-                readyVertices.push_back(v2_prime);
-                readyVertices.push_back(v0);
-                break;
-            }
-
-            case 0b111:
-                // All inside, so just draw as-is.
-                readyVertices.push_back(v0);
-                readyVertices.push_back(v1);
-                readyVertices.push_back(v2);
-                break;
-
-            // default:
-                // Impossible, all cases covered.
-                // break;
-        }
-
-        // By "clipping" against an inequality, I think I just set
-        // the coordinate to the extreme of W on that plane (for +X, it's set X=W)
-        //
-        // Or rather, I need to interpolate the other two (three?) coordinates
-        // to find new points which intersect the plane at the previous W,
-        // then create new triangles using them.
-
-
-
-    }
-
-    // printf("Ready to draw %d triangles! \n", readyVertices.size() / 3);
-    for (size_t i = 0; i < readyVertices.size(); i += 3)
-    {
-        Vertex v0 = readyVertices[i + 0];
-        Vertex v1 = readyVertices[i + 1];
-        Vertex v2 = readyVertices[i + 2];
-
-        perspectiveDivide(v0);
-        perspectiveDivide(v1);
-        perspectiveDivide(v2);
-
-        viewportTransform(v0);
-        viewportTransform(v1);
-        viewportTransform(v2);
-
-        RenderTriangle(v0, v1, v2);
-    }
-
-}
-
-
-
-
-// Renders a triangle, assuming that it has already been transformed
-// and clipped into the view port.
-void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const Vertex& v2)
-{
     auto edgeFunction = [](const glm::vec2& p, const glm::vec2& p1, const glm::vec2& p2)
     {
         const glm::vec2 a { p2 - p1 };
@@ -376,11 +525,13 @@ void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const 
     };
 
 
+    bool cull = false;
     const float totalArea = edgeFunction({v0.position.x, v0.position.y}, {v1.position.x, v1.position.y}, {v2.position.x, v2.position.y});
     if (totalArea <= 0)
     {
         // Cull back facing triangles
-        return;
+        // return;
+        cull = true;
     }
 
 
@@ -400,14 +551,25 @@ void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const 
         //     // return;
         // }
 
-    // printf(
-    //     "v0: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
-    //     "v1: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
-    //     "v2: (x=%02f, y=%02f, z=%02f, w=%02f) \n\n",
-    //     v0.position.x, v0.position.y, v0.position.z, v0.position.w,
-    //     v1.position.x, v1.position.y, v1.position.z, v1.position.w,
-    //     v2.position.x, v2.position.y, v2.position.z, v2.position.w
-    // );
+
+
+
+
+    printf(
+        "Drawing: \n"
+        "  (clip) v0: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
+        "  (clip) v1: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
+        "  (clip) v2: (x=%02f, y=%02f, z=%02f, w=%02f) \n\n",
+        v0_copy.position.x, v0_copy.position.y, v0_copy.position.z, v0_copy.position.w,
+        v1_copy.position.x, v1_copy.position.y, v1_copy.position.z, v1_copy.position.w,
+        v2_copy.position.x, v2_copy.position.y, v2_copy.position.z, v2_copy.position.w
+    );
+
+
+    if (cull)
+    {
+        return;
+    }
 
 
 
@@ -484,7 +646,7 @@ void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const 
                 auto mixBarycentric = [w1, w2](float z0, float z1, float z2)
                 {
                     // Barycentric coordinates optimization:
-                    // removes a multiplication operation
+                    // removes a multiply
                     //
                     // w0 + w1 + w2 = 1
                     // w0 = 1 - w1 - w2
@@ -516,10 +678,20 @@ void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const 
                 float textureColorA = 1.0;
                 if (m_ActiveTextureID != 0)
                 {
-                    // TODO: Perspective correction
                     auto& rTexture = GetActiveTexture();
+
+                    // TODO: Support negative tex coords better?
                     float mixedTexCoordU = std::fmod(mixBarycentric(v0.texcoords.x, v1.texcoords.x, v2.texcoords.x) * depth, 1.0f);
+                    if (mixedTexCoordU < 0)
+                    {
+                        mixedTexCoordU += 1.0f;
+                    }
                     float mixedTexCoordV = std::fmod(mixBarycentric(v0.texcoords.y, v1.texcoords.y, v2.texcoords.y) * depth, 1.0f);
+                    if (mixedTexCoordV < 0)
+                    {
+                        mixedTexCoordV += 1.0f;
+                    }
+
                     // TODO: Better filtering, mipmaps, texture repeating, clamping, etc.
                     uint32_t sampleXCoord = static_cast<uint32_t>(rTexture.width * mixedTexCoordU);
                     uint32_t sampleYCoord = static_cast<uint32_t>(rTexture.height * (1.0 - mixedTexCoordV));
@@ -536,7 +708,7 @@ void SoftwareRenderer::RenderTriangle(const Vertex& v0, const Vertex& v1, const 
 
 
                 // Alpha Test
-                if (textureColorA < 0.01)
+                if (textureColorA < 0.5)
                 {
                     continue;
                 }

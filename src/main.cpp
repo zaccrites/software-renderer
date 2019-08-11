@@ -201,12 +201,14 @@ int main(int argc, char** argv)
 
 
     float cameraRoll = 0.0;
-    float cameraPitch = M_PI / 4;
+    float cameraPitch = 0.0;
     float cameraYaw = 0.0;
 
-    float cameraX = 13.7;
-    float cameraY = 10.0;
-    float cameraZ = 10.0;
+    // float cameraX = 0.0;
+    // float cameraX = 13.7;
+    float cameraX = 0;
+    float cameraY = 0;
+    float cameraZ = 20;
 
 
     float t = 0;
@@ -237,9 +239,22 @@ int main(int argc, char** argv)
                         case SDLK_LEFT:
                             cameraX -= 0.1f;
                             break;
-
                         case SDLK_RIGHT:
                             cameraX += 0.1f;
+                            break;
+
+                        case SDLK_UP:
+                            cameraZ -= 0.1f;
+                            break;
+                        case SDLK_DOWN:
+                            cameraZ += 0.1f;
+                            break;
+
+                        case SDLK_o:
+                            cameraY -= 0.1f;
+                            break;
+                        case SDLK_p:
+                            cameraY += 0.1f;
                             break;
 
                         default:
@@ -293,13 +308,13 @@ int main(int argc, char** argv)
         // glm::mat4 view = glm::lookAt(eye, target, up);
 
 
-        glm::mat4 view;
-        view = glm::rotate(view, -cameraRoll, {0.0, 0.0, 1.0});
+        glm::mat4 view {1.0};
+        // view = glm::rotate(view, -cameraRoll, {0.0, 0.0, 1.0});
         view = glm::rotate(view, -cameraPitch, {1.0, 0.0, 0.0});
         view = glm::rotate(view, -cameraYaw, {0.0, 1.0, 0.0});
         view = glm::translate(view, {-cameraX, -cameraY, -cameraZ});
 
-        view = glm::lookAt(eye, target, up);
+        // view = glm::lookAt(eye, target, up);
 
 
         context.Clear(0x64, 0x95, 0xed);
@@ -313,7 +328,7 @@ int main(int argc, char** argv)
 
         context.UseTexture(texture2);
         context.SetViewModelMatrix(view * model2);
-        context.DrawTriangleList(cube2);
+        // context.DrawTriangleList(cube2);
 
 
         // TODO: Use the SDL_PixelFormat struct to get rid of the 4 magic number
