@@ -11,114 +11,62 @@
 
 
 const uint32_t FRAME_SCALING = 1;
-const uint32_t FRAME_WIDTH = 320 * FRAME_SCALING;
-const uint32_t FRAME_HEIGHT = 240 * FRAME_SCALING;
+const uint32_t FRAME_WIDTH = 640 * FRAME_SCALING;
+const uint32_t FRAME_HEIGHT = 480 * FRAME_SCALING;
 
-const uint32_t DISPLAY_SCALING = 4;
+const uint32_t DISPLAY_SCALING = 2;
 const uint32_t DISPLAY_WIDTH = FRAME_WIDTH * DISPLAY_SCALING;
 const uint32_t DISPLAY_HEIGHT = FRAME_HEIGHT * DISPLAY_SCALING;
 
 
 
 
-// Make a cylinder-like mesh.
+// TODO: Make a cylinder-like mesh.
 // std::vector<Vertex> MakeMesh(uint32_t sides)
 std::vector<Vertex> MakeMesh()
 {
     // "VBO" (TODO: Use indexing to render, rather than duplicating vertices)
     std::vector<Vertex> mesh;
 
-    // // Make top and bottom
-    // for (uint32_t i = 0; i < sides - 1; i++)
-    // {
-    //     // TOP
+    auto makeSide = [&mesh](const glm::vec3& axis, float angle, const glm::vec3& color) {
+        glm::mat4 transform { 1.0 };
+        transform = glm::rotate(transform, angle, axis);
 
+        glm::vec4 top_upLeft    = transform * glm::vec4 {-1.0, 1.0,  1.0, 1.0};
+        glm::vec4 top_upRight   = transform * glm::vec4 { 1.0, 1.0,  1.0, 1.0};
+        glm::vec4 top_downLeft  = transform * glm::vec4 {-1.0, 1.0, -1.0, 1.0};
+        glm::vec4 top_downRight = transform * glm::vec4 { 1.0, 1.0, -1.0, 1.0};
 
-    // }
+        glm::vec2 tex_upLeft = {0.0, 1.0};
+        glm::vec2 tex_upRight = {1.0, 1.0};
+        glm::vec2 tex_downLeft = {0.0, 0.0};
+        glm::vec2 tex_downRight = {1.0, 0.0};
 
-    // Create a cube
-    glm::vec3 top_upLeft = {-1.0, 1.0, 1.0};
-    glm::vec3 top_upRight = {1.0, 1.0, 1.0};
-    glm::vec3 top_downLeft = {-1.0, 1.0, -1.0};
-    glm::vec3 top_downRight = {1.0, 1.0, -1.0};
-    //
-    glm::vec3 bottom_upLeft = {-1.0, -1.0, 1.0};
-    glm::vec3 bottom_upRight = {1.0, -1.0, 1.0};
-    glm::vec3 bottom_downLeft = {-1.0, -1.0, -1.0};
-    glm::vec3 bottom_downRight = {1.0, -1.0, -1.0};
-    //
+        mesh.push_back({top_downLeft, color, tex_downLeft});
+        mesh.push_back({top_downRight, color, tex_downRight});
+        mesh.push_back({top_upLeft, color, tex_upLeft});
+
+        mesh.push_back({top_downRight, color, tex_downRight});
+        mesh.push_back({top_upRight, color, tex_upRight});
+        mesh.push_back({top_upLeft, color, tex_upLeft});
+
+    };
+
     glm::vec3 red     = {1.0, 0.0, 0.0};
     glm::vec3 green   = {0.0, 1.0, 0.0};
     glm::vec3 blue    = {0.0, 0.0, 1.0};
     glm::vec3 cyan    = {0.0, 1.0, 1.0};
     glm::vec3 magenta = {1.0, 0.0, 1.0};
     glm::vec3 yellow  = {1.0, 1.0, 0.0};
-    //
-    //
-    glm::vec2 tex_upLeft = {0.0, 1.0};
-    glm::vec2 tex_upRight = {1.0, 1.0};
-    glm::vec2 tex_downLeft = {0.0, 0.0};
-    glm::vec2 tex_downRight = {1.0, 0.0};
-    //
-    //
-    // TOP
-    mesh.push_back({top_downLeft, red, tex_downLeft});
-    mesh.push_back({top_downRight, green, tex_downRight});
-    mesh.push_back({top_upLeft, blue, tex_upLeft});
-    //
-    mesh.push_back({top_downRight, red, tex_downRight});
-    mesh.push_back({top_upRight, red, tex_upRight});
-    mesh.push_back({top_upLeft, red, tex_upLeft});
-    //
-    //
-    // BOTTOM
-    mesh.push_back({bottom_upLeft, cyan, tex_downLeft});
-    mesh.push_back({bottom_downRight, cyan, tex_downRight});
-    mesh.push_back({bottom_downLeft, cyan, tex_upLeft});
-    //
-    mesh.push_back({bottom_upLeft, cyan, tex_downRight});
-    mesh.push_back({bottom_upRight, cyan, tex_upRight});
-    mesh.push_back({bottom_downRight, cyan, tex_upLeft});
-    //
-    //
-    // RIGHT
-    mesh.push_back({bottom_downRight, green, tex_downLeft});
-    mesh.push_back({top_upRight, green, tex_downRight});
-    mesh.push_back({top_downRight, green, tex_upLeft});
-    //
-    mesh.push_back({bottom_downRight, green, tex_downRight});
-    mesh.push_back({bottom_upRight, green, tex_upRight});
-    mesh.push_back({top_upRight, green, tex_upLeft});
-    //
-    //
-    // LEFT
-    mesh.push_back({bottom_upLeft, magenta, tex_downLeft});
-    mesh.push_back({top_downLeft, magenta, tex_downRight});
-    mesh.push_back({top_upLeft, magenta, tex_upLeft});
-    //
-    mesh.push_back({bottom_upLeft, magenta, tex_downRight});
-    mesh.push_back({bottom_downLeft, magenta, tex_upRight});
-    mesh.push_back({top_downLeft, magenta, tex_upLeft});
-    //
-    //
-    // FRONT
-    mesh.push_back({bottom_downRight, blue, tex_downLeft});
-    mesh.push_back({top_downRight, blue, tex_downRight});
-    mesh.push_back({top_downLeft, blue, tex_upLeft});
-    //
-    mesh.push_back({bottom_downLeft, blue, tex_downRight});
-    mesh.push_back({bottom_downRight, blue, tex_upRight});
-    mesh.push_back({top_downLeft, blue, tex_upLeft});
-    //
-    //
-    // BACK
-    mesh.push_back({top_upLeft, yellow, tex_downLeft});
-    mesh.push_back({top_upRight, yellow, tex_downRight});
-    mesh.push_back({bottom_upLeft, yellow, tex_upLeft});
-    //
-    mesh.push_back({top_upRight, yellow, tex_downRight});
-    mesh.push_back({bottom_upRight, yellow, tex_upRight});
-    mesh.push_back({bottom_upLeft, yellow, tex_upLeft});
+
+    glm::vec3 forward = {0.0, 0.0, 1.0};
+    glm::vec3 left = {-1.0, 0.0, 0.0};
+    makeSide(forward, static_cast<float>(glm::radians(0.0f)), red);  // TOP
+    makeSide(forward, static_cast<float>(glm::radians(90.0f)), green);  // RIGHT
+    makeSide(forward, static_cast<float>(glm::radians(180.0f)), magenta);  // BOTTOM
+    makeSide(forward, static_cast<float>(glm::radians(270.0f)), cyan);  // LEFT
+    makeSide(left, static_cast<float>(glm::radians(90.0f)), blue);  // BACKWARD)
+    makeSide(left, static_cast<float>(glm::radians(270.0f)), yellow);  // FORWARD)
 
     return mesh;
 }
@@ -240,8 +188,8 @@ int main(int argc, char** argv)
 
 
     auto texture = MakeCheckerboardTexture(context);
-    auto oliveTexture = MakeTextureFromFile(context, "/home/zac/gpu/assets/textures/olive2.png");
-    if ( ! oliveTexture)
+    auto texture2 = MakeTextureFromFile(context, "/home/zac/gpu/assets/textures/swipe.png");
+    if ( ! texture2)
     {
         std::cerr << "Failed to read texture file!" << std::endl;
         return 1;
@@ -304,11 +252,12 @@ int main(int argc, char** argv)
 
 
         glm::mat4 model1 {1.0};
-        model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
+        // model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
         model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
         // model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0)), glm::vec3 {0.0, 1.0, 0.0});
 
         glm::mat4 model2 {1.0};
+        model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
         model2 = glm::rotate(model2, static_cast<float>(glm::radians(90.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
         model2 = glm::translate(model2, glm::vec3 {10.0, 0.0, 0.0});
         model2 = glm::rotate(model2, static_cast<float>(glm::radians(180.0)), glm::vec3 {0.0, 1.0, 0.0});
@@ -358,10 +307,11 @@ int main(int argc, char** argv)
 
 
         context.UseTexture(texture);
+        // context.UseTexture(texture2);
         context.SetViewModelMatrix(view * model1);
         context.DrawTriangleList(cube1);
 
-        context.UseTexture(oliveTexture);
+        context.UseTexture(texture2);
         context.SetViewModelMatrix(view * model2);
         context.DrawTriangleList(cube2);
 
@@ -378,7 +328,7 @@ int main(int argc, char** argv)
     }
 
     context.DestroyTexture(texture);
-    context.DestroyTexture(oliveTexture);
+    context.DestroyTexture(texture2);
 
     SDL_DestroyTexture(pDisplayTexture);
     SDL_DestroyRenderer(pRenderer);
