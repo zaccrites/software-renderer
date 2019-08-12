@@ -42,6 +42,11 @@ std::vector<Vertex> MakeMesh()
         glm::vec2 tex_downLeft = {0.0, 0.0};
         glm::vec2 tex_downRight = {1.0, 0.0};
 
+        glm::vec3 red     = {1.0, 0.0, 0.0};
+        glm::vec3 green   = {0.0, 1.0, 0.0};
+        glm::vec3 blue    = {0.0, 0.0, 1.0};
+
+
         mesh.push_back({top_downLeft, color, tex_downLeft});
         mesh.push_back({top_downRight, color, tex_downRight});
         mesh.push_back({top_upLeft, color, tex_upLeft});
@@ -208,7 +213,7 @@ int main(int argc, char** argv)
     // float cameraX = 13.7;
     float cameraX = 0;
     float cameraY = 0;
-    float cameraZ = 20;
+    float cameraZ = 10;
 
 
     float t = 0;
@@ -236,26 +241,45 @@ int main(int argc, char** argv)
                             isRunning = false;
                             break;
 
-                        case SDLK_LEFT:
+
+                        case SDLK_a:
                             cameraX -= 0.1f;
                             break;
-                        case SDLK_RIGHT:
+                        case SDLK_d:
                             cameraX += 0.1f;
                             break;
 
-                        case SDLK_UP:
+                        case SDLK_w:
                             cameraZ -= 0.1f;
                             break;
-                        case SDLK_DOWN:
+                        case SDLK_s:
                             cameraZ += 0.1f;
                             break;
 
-                        case SDLK_o:
-                            cameraY -= 0.1f;
-                            break;
-                        case SDLK_p:
+                        case SDLK_c:
                             cameraY += 0.1f;
                             break;
+                        case SDLK_z:
+                            cameraY -= 0.1f;
+                            break;
+
+
+                        // TODO: Use mouse, and move in direction of camera movement
+                        // Extract camera class
+                        case SDLK_UP:
+                            cameraPitch += 0.1f;
+                            break;
+                        case SDLK_DOWN:
+                            cameraPitch -= 0.1f;
+                            break;
+
+                        case SDLK_LEFT:
+                            cameraYaw += 0.1f;
+                            break;
+                        case SDLK_RIGHT:
+                            cameraYaw -= 0.1f;
+                            break;
+
 
                         default:
                             break;
@@ -268,6 +292,8 @@ int main(int argc, char** argv)
 
         glm::mat4 model1 {1.0};
         // model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
+        model1 = glm::scale(model1, glm::vec3 {0.5, 0.5, 0.5});
+        // model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0)), glm::vec3 {0.0, 1.0, 0.0});
         model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
         // model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0)), glm::vec3 {0.0, 1.0, 0.0});
 
@@ -281,7 +307,7 @@ int main(int argc, char** argv)
             glm::radians(45.0f),
             static_cast<float>(FRAME_WIDTH) / static_cast<float>(FRAME_HEIGHT),
             5.0f,
-            50.0f
+            100.0f
         ));
 
         // Take the inverse of the projection matrix to find clipping planes.
@@ -328,7 +354,7 @@ int main(int argc, char** argv)
 
         context.UseTexture(texture2);
         context.SetViewModelMatrix(view * model2);
-        // context.DrawTriangleList(cube2);
+        context.DrawTriangleList(cube2);
 
 
         // TODO: Use the SDL_PixelFormat struct to get rid of the 4 magic number

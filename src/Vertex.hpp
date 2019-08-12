@@ -11,6 +11,16 @@ struct Vertex
     glm::vec3 color;
     glm::vec2 texcoords;
 
+
+    // TODO: This is only on the internal vertex, and should be
+    // cached instead of computed every time.
+    float oneOverW()
+    {
+        return 1.0 / position.w;
+    }
+
+
+
     Vertex(glm::vec3 p, glm::vec3 c, glm::vec2 t) :
         position { p, 1.0 },
         color { c },

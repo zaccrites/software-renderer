@@ -191,14 +191,9 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
             printf("WARNING: a.position.w == %02f, b.position.w == %02f \n", a.position.w, b.position.w);
         }
 
-
-
         // TODO: Different for Z near/far clipping?
-        float wClipA = positive ? a.position.w : -a.position.w;
-        float wClipB = positive ? b.position.w : -b.position.w;
-
-
-
+        const float wClipA = positive ? a.position.w : -a.position.w;
+        const float wClipB = positive ? b.position.w : -b.position.w;
         const float n = (wClipB - coordinateB);
         const float t = n / (n + coordinateA - wClipA);
 
@@ -223,14 +218,14 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
         // printf("Interpolated x coord: %f and %f into %f \n", a.position.x, b.position.x, newX);
 
 
-        printf(
-            "new (x=%02f, y=%02f, z=%02f, w=%02f) \n"
-            "    (r=%02f, g=%02f, b=%02f) \n"
-            "    (u=%02f, v=%02f) \n",
-            newX, newY, newZ, newW,
-            newR, newG, newB,
-            newU, newV
-        );
+        // printf(
+        //     "new (x=%02f, y=%02f, z=%02f, w=%02f) \n"
+        //     "    (r=%02f, g=%02f, b=%02f) \n"
+        //     "    (u=%02f, v=%02f) \n",
+        //     newX, newY, newZ, newW,
+        //     newR, newG, newB,
+        //     newU, newV
+        // );
 
 
 
@@ -239,6 +234,8 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
             { newR, newG, newB },
             { newU, newV }
         };
+
+
 
     };
 
@@ -308,8 +305,8 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
 
                 // pattern = 7;
 
-                if ( ! positive)
-                    printf("pattern = %d  \n", pattern);
+                // if ( ! positive)
+                    // printf("pattern = %d  \n", pattern);
 
                 switch (pattern)
                 {
@@ -405,33 +402,26 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
                 }
             };  // clipTriangle
 
-            printf("planeNumber = %d \n", planeNumber);
+            // printf("planeNumber = %d \n", planeNumber);
             switch (planeNumber)
             {
             case 0:
                 clipTriangle(Direction::X, true);
-                // newClipVertices = clipVertices;  // copy
                 break;
             case 1:
                 clipTriangle(Direction::X, false);
-                // newClipVertices = clipVertices;  // copy
                 break;
             case 2:
                 clipTriangle(Direction::Y, true);
-                // newClipVertices = clipVertices;  // copy
                 break;
             case 3:
                 clipTriangle(Direction::Y, false);
-                // newClipVertices = clipVertices;  // copy
                 break;
             case 4:
-                // TODO: Z clipping
-                // clipTriangle(Direction::Z, true);
-                newClipVertices = clipVertices;  // copy
+                clipTriangle(Direction::Z, true);
                 break;
             case 5:
-                // clipTriangle(Direction::Z, false);
-                newClipVertices = clipVertices;  // copy
+                clipTriangle(Direction::Z, false);
                 break;
             default:
                 assert(false);
@@ -484,18 +474,16 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
         v.position.y /= v.position.w;
         v.position.z /= v.position.w;
 
-        v.color.r /= v.position.z;
-        v.color.g /= v.position.z;
-        v.color.b /= v.position.z;
+        v.color.r /= v.position.w;
+        v.color.g /= v.position.w;
+        v.color.b /= v.position.w;
 
-        v.texcoords.x /= v.position.z;
-        v.texcoords.y /= v.position.z;
+        v.texcoords.x /= v.position.w;
+        v.texcoords.y /= v.position.w;
 
-        // (???) For perspective correction (1/z is linear in screen space)
-        v.position.z = 1.0f / v.position.z;
+        // (???) For perspective correction (1/w is linear in screen space)
+        // v.oneOverW = 1.0f / v.position.w;
 
-        // v.position.w no longer useful,
-        // can be dropped from the pipeline after this
     };
 
     // Model Space -> World Space -> Camera Space -> Clip Space -> NDC Space -> [Raster Space]
@@ -555,15 +543,30 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
 
 
 
-    printf(
-        "Drawing: \n"
-        "  (clip) v0: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
-        "  (clip) v1: (x=%02f, y=%02f, z=%02f, w=%02f) \n"
-        "  (clip) v2: (x=%02f, y=%02f, z=%02f, w=%02f) \n\n",
-        v0_copy.position.x, v0_copy.position.y, v0_copy.position.z, v0_copy.position.w,
-        v1_copy.position.x, v1_copy.position.y, v1_copy.position.z, v1_copy.position.w,
-        v2_copy.position.x, v2_copy.position.y, v2_copy.position.z, v2_copy.position.w
-    );
+    // printf(
+    //     "Drawing: \n"
+    //     "  (clip) v0: (x=%.2f, y=%.2f, z=%.2f, w=%.2f)  (screen) (x=%.2f, y=%.2f, z=%.2f, w=%.2f) \n"
+    //     "  (clip) v1: (x=%.2f, y=%.2f, z=%.2f, w=%.2f)  (screen) (x=%.2f, y=%.2f, z=%.2f, w=%.2f) \n"
+    //     "  (clip) v2: (x=%.2f, y=%.2f, z=%.2f, w=%.2f)  (screen) (x=%.2f, y=%.2f, z=%.2f, w=%.2f) \n\n",
+    //     v0_copy.position.x, v0_copy.position.y, v0_copy.position.z, v0_copy.position.w,
+    //     v0.position.x, v0.position.y, v0.position.z, v0.position.w,
+    //     v1_copy.position.x, v1_copy.position.y, v1_copy.position.z, v1_copy.position.w,
+    //     v1.position.x, v1.position.y, v1.position.z, v1.position.w,
+    //     v2_copy.position.x, v2_copy.position.y, v2_copy.position.z, v2_copy.position.w,
+    //     v2.position.x, v2.position.y, v2.position.z, v2.position.w
+    // );
+
+
+    // printf(
+    //     "Drawing \n"
+    //     "  v0: (x=%.2f, y=%.2f, z=%.2f, w=%.2f),  (r=%.2f, g=%.2f, b=%.2f),  (u=%.2f, v=%.2f)  \n"
+    //     "  v1: (x=%.2f, y=%.2f, z=%.2f, w=%.2f),  (r=%.2f, g=%.2f, b=%.2f),  (u=%.2f, v=%.2f)  \n"
+    //     "  v2: (x=%.2f, y=%.2f, z=%.2f, w=%.2f),  (r=%.2f, g=%.2f, b=%.2f),  (u=%.2f, v=%.2f)  \n\n",
+    //     v0.position.x, v0.position.y, v0.position.z, v0.position.w, v0.color.r, v0.color.g, v0.color.b, v0.texcoords.x, v0.texcoords.y,
+    //     v1.position.x, v1.position.y, v1.position.z, v1.position.w, v1.color.r, v1.color.g, v1.color.b, v1.texcoords.x, v1.texcoords.y,
+    //     v2.position.x, v2.position.y, v2.position.z, v2.position.w, v2.color.r, v2.color.g, v2.color.b, v2.texcoords.x, v2.texcoords.y
+    // );
+
 
 
     if (cull)
@@ -667,7 +670,14 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                 float lastDepth = m_DepthBuffer[pixelIndex];
 
                 // Take the reciprocal for perspective correction
-                float depth = 1.0 / mixBarycentric(v0.position.z, v1.position.z, v2.position.z);
+                float depth = 1.0 / mixBarycentric(v0.oneOverW(), v1.oneOverW(), v2.oneOverW());
+                // float depth = 1.0 / mixBarycentric(v0.position.w, v1.position.w, v2.position.w);
+                // printf("depth = %.4f  \n", depth);
+
+
+                // Even though it's not clipped yet, z is less than 0.
+                // That's messing everything up here.
+
 
                 // std::cout << "depth = " << depth << std::endl;
 
@@ -682,15 +692,16 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
 
                     // TODO: Support negative tex coords better?
                     float mixedTexCoordU = std::fmod(mixBarycentric(v0.texcoords.x, v1.texcoords.x, v2.texcoords.x) * depth, 1.0f);
+                    float mixedTexCoordV = std::fmod(mixBarycentric(v0.texcoords.y, v1.texcoords.y, v2.texcoords.y) * depth, 1.0f);
                     if (mixedTexCoordU < 0)
                     {
                         mixedTexCoordU += 1.0f;
                     }
-                    float mixedTexCoordV = std::fmod(mixBarycentric(v0.texcoords.y, v1.texcoords.y, v2.texcoords.y) * depth, 1.0f);
                     if (mixedTexCoordV < 0)
                     {
                         mixedTexCoordV += 1.0f;
                     }
+                    // printf("mixedTexCoord(U,V) = (%.4f, %.4f) \n", mixedTexCoordU, mixedTexCoordV);
 
                     // TODO: Better filtering, mipmaps, texture repeating, clamping, etc.
                     uint32_t sampleXCoord = static_cast<uint32_t>(rTexture.width * mixedTexCoordU);
@@ -726,13 +737,13 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                 }
 
 
-                // float vertexColorR = mixBarycentric(v0.color.r, v1.color.r, v2.color.r) * depth;
-                // float vertexColorG = mixBarycentric(v0.color.g, v1.color.g, v2.color.g) * depth;
-                // float vertexColorB = mixBarycentric(v0.color.b, v1.color.b, v2.color.b) * depth;
+                float vertexColorR = mixBarycentric(v0.color.r, v1.color.r, v2.color.r) * depth;
+                float vertexColorG = mixBarycentric(v0.color.g, v1.color.g, v2.color.g) * depth;
+                float vertexColorB = mixBarycentric(v0.color.b, v1.color.b, v2.color.b) * depth;
 
-                float vertexColorR = debugColor.r;
-                float vertexColorG = debugColor.g;
-                float vertexColorB = debugColor.b;
+                vertexColorR = debugColor.r;
+                vertexColorG = debugColor.g;
+                vertexColorB = debugColor.b;
 
 
                 float pixelColorR = vertexColorR;
