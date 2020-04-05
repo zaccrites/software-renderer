@@ -145,13 +145,10 @@ uint32_t MakeTextureFromFile(SoftwareRenderer& rContext, const char* filename)
 }
 
 
-
-
 int main(int argc, char** argv)
 {
     (void)argc;
     (void)argv;
-
 
     if (SDL_Init(SDL_INIT_EVERYTHING) != 0)
     {
@@ -193,7 +190,7 @@ int main(int argc, char** argv)
 
 
     auto texture = MakeCheckerboardTexture(context);
-    auto texture2 = MakeTextureFromFile(context, "/home/zac/gpu/assets/textures/swipe.png");
+    auto texture2 = MakeTextureFromFile(context, "textures/moon.png");
     if ( ! texture2)
     {
         std::cerr << "Failed to read texture file!" << std::endl;

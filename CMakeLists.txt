@@ -25,12 +25,6 @@ target_include_directories(stb_image PUBLIC
 )
 
 
-
-
-
-
-
-
 add_executable(simulator
     "src/main.cpp"
     "src/SoftwareRenderer.cpp"
@@ -40,9 +34,8 @@ target_include_directories(simulator PRIVATE
     ${SDL2_INCLUDE_DIRECTORIES}
 )
 
-target_include_directories(simulator SYSTEM PUBLIC
-    # TODO: Download GLM and use its CMakeLists file similar to GoogleTest
-    "glm"
+target_include_directories(simulator PUBLIC SYSTEM
+    vendor/glm
 )
 
 target_link_libraries(simulator
