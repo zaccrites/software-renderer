@@ -6,14 +6,8 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 
-// TODO: REMOVE ME
 #include <stdio.h>
 
-// struct InternalVertex
-// {
-//     // glm::vec4 position;
-//     // glm::vec
-// };
 
 
 
@@ -51,7 +45,6 @@ void SoftwareRenderer::Clear(uint8_t r, uint8_t g, uint8_t b)
     for (uint32_t i = 0; i < m_DepthBuffer.size(); i++)
     {
         m_DepthBuffer[i] = std::numeric_limits<float>::infinity();
-        // m_DepthBuffer[i] = 0;
     }
 
     printf("Drew %d triangles last frame! \n", frameTriangleCounter);
@@ -124,31 +117,6 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
         v.position = transformMatrix * v.position;
     };
 
-    // // Model Space -> World Space -> Camera Space -> Clip Space -> [NDC Space] -> Raster Space
-    // auto perspectiveDivide = [](Vertex& v) {
-    //     v.position.x /= v.position.w;
-    //     v.position.y /= v.position.w;
-    //     v.position.z /= v.position.w;
-
-    //     v.color.r /= v.position.z;
-    //     v.color.g /= v.position.z;
-    //     v.color.b /= v.position.z;
-
-    //     v.texcoords.x /= v.position.z;
-    //     v.texcoords.y /= v.position.z;
-
-    //     // (???) For perspective correction (1/z is linear in screen space)
-    //     v.position.z = 1.0f / v.position.z;
-
-    //     // v.position.w no longer useful,
-    //     // can be dropped from the pipeline after this
-    // };
-
-    // // Model Space -> World Space -> Camera Space -> Clip Space -> NDC Space -> [Raster Space]
-    // auto viewportTransform = [this](Vertex& v) {
-    //     v.position.x = (1.0f + v.position.x) * (m_FrameWidth / 2);
-    //     v.position.y = (1.0f - v.position.y) * (m_FrameHeight / 2);
-    // };
 
 
 
@@ -446,20 +414,10 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
         Vertex v1 = clipVertices[i + 1];
         Vertex v2 = clipVertices[i + 2];
 
-        // perspectiveDivide(v0);
-        // perspectiveDivide(v1);
-        // perspectiveDivide(v2);
-
-        // viewportTransform(v0);
-        // viewportTransform(v1);
-        // viewportTransform(v2);
-
         RenderTriangle(v0, v1, v2);
     }
 
 }
-
-
 
 
 // Renders a triangle, assuming that it has already been transformed
@@ -513,98 +471,18 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
     };
 
 
-    bool cull = false;
     const float totalArea = edgeFunction({v0.position.x, v0.position.y}, {v1.position.x, v1.position.y}, {v2.position.x, v2.position.y});
     if (totalArea <= 0)
     {
         // Cull back facing triangles
-        // return;
-        cull = true;
+	return;
     }
-
-
-        // auto test = [](const Vertex& v, const char* label) {
-        //     printf("%s.position = (x:%02f, y:%02f, z:%02f, w:%02f) \n", label, v.position.x, v.position.y, v.position.z, v.position.w);
-        //     return  v.position.w >  0            &&
-        //            -v.position.w <= v.position.x &&
-        //             v.position.w >= v.position.x &&
-        //            -v.position.w <= v.position.y &&
-        //             v.position.w >= v.position.y &&
-        //            -v.position.w <= v.position.z &&
-        //             v.position.w >= v.position.z;
-        // };
-        // printf("\n\n");
-        // if ( ! (test(v0, "red") && test(v1, "green") && test(v2, "blue")))
-        // {
-        //     // return;
-        // }
-
-
-
-
-
-    // printf(
-    //     "Drawing: \n"
-    //     "  (clip) v0: (x=%.2f, y=%.2f, z=%.2f, w=%.2f)  (screen) (x=%.2f, y=%.2f, z=%.2f, w=%.2f) \n"
-    //     "  (clip) v1: (x=%.2f, y=%.2f, z=%.2f, w=%.2f)  (screen) (x=%.2f, y=%.2f, z=%.2f, w=%.2f) \n"
-    //     "  (clip) v2: (x=%.2f, y=%.2f, z=%.2f, w=%.2f)  (screen) (x=%.2f, y=%.2f, z=%.2f, w=%.2f) \n\n",
-    //     v0_copy.position.x, v0_copy.position.y, v0_copy.position.z, v0_copy.position.w,
-    //     v0.position.x, v0.position.y, v0.position.z, v0.position.w,
-    //     v1_copy.position.x, v1_copy.position.y, v1_copy.position.z, v1_copy.position.w,
-    //     v1.position.x, v1.position.y, v1.position.z, v1.position.w,
-    //     v2_copy.position.x, v2_copy.position.y, v2_copy.position.z, v2_copy.position.w,
-    //     v2.position.x, v2.position.y, v2.position.z, v2.position.w
-    // );
-
-
-    // printf(
-    //     "Drawing \n"
-    //     "  v0: (x=%.2f, y=%.2f, z=%.2f, w=%.2f),  (r=%.2f, g=%.2f, b=%.2f),  (u=%.2f, v=%.2f)  \n"
-    //     "  v1: (x=%.2f, y=%.2f, z=%.2f, w=%.2f),  (r=%.2f, g=%.2f, b=%.2f),  (u=%.2f, v=%.2f)  \n"
-    //     "  v2: (x=%.2f, y=%.2f, z=%.2f, w=%.2f),  (r=%.2f, g=%.2f, b=%.2f),  (u=%.2f, v=%.2f)  \n\n",
-    //     v0.position.x, v0.position.y, v0.position.z, v0.position.w, v0.color.r, v0.color.g, v0.color.b, v0.texcoords.x, v0.texcoords.y,
-    //     v1.position.x, v1.position.y, v1.position.z, v1.position.w, v1.color.r, v1.color.g, v1.color.b, v1.texcoords.x, v1.texcoords.y,
-    //     v2.position.x, v2.position.y, v2.position.z, v2.position.w, v2.color.r, v2.color.g, v2.color.b, v2.texcoords.x, v2.texcoords.y
-    // );
-
-
-
-    if (cull)
-    {
-        return;
-    }
-
-
-
-    // TODO: Go back and study the various pieces of this to figure
-    // out EXACTLY what is going on, then reorganize the code
-    // so that it fits the various pipeline stages better.
-
-
-
 
     // TODO: Use a smarter algorithm than a bounding box.
     uint32_t xmin = static_cast<uint32_t>(std::round(std::min({v0.position.x, v1.position.x, v2.position.x})));
     uint32_t xmax = static_cast<uint32_t>(std::round(std::max({v0.position.x, v1.position.x, v2.position.x})));
     uint32_t ymin = static_cast<uint32_t>(std::round(std::min({v0.position.y, v1.position.y, v2.position.y})));
     uint32_t ymax = static_cast<uint32_t>(std::round(std::max({v0.position.y, v1.position.y, v2.position.y})));
-
-    // // TODO: Remove this once clipping is implemented
-    // xmin = std::max(xmin, 0U);
-    // xmax = std::min(xmax, m_FrameWidth);
-    // ymin = std::max(ymin, 0U);
-    // ymax = std::min(ymax, m_FrameHeight);
-
-    // ymin = 0;
-    // xmin = 0;
-    // ymax = m_FrameHeight;
-    // xmax = m_FrameWidth;
-
-    // std::cout << "x on " << ymin << " to " << ymax << "\n" <<
-    //              "y on " << xmin << " to " << xmax << "\n" << std::endl;
-
-
-
 
     glm::vec3 debugColor;
     switch (frameTriangleCounter % 12) {
@@ -626,10 +504,8 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
 
 
     for (uint32_t y = ymin; y <= ymax; y++)
-    // for (uint32_t y = 0; y < m_FrameHeight; y++)
     {
         for (uint32_t x = xmin; x <= xmax; x++)
-        // for (uint32_t x = 0; x < m_FrameWidth; x++)
         {
 
             const float area_v0_v1_p = edgeFunction({x, y}, {v0.position.x, v0.position.y}, {v1.position.x, v1.position.y});
@@ -640,8 +516,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
             // Assumes clockwise winding for front faces:
             if (area_v0_v1_p > 0 && area_v1_v2_p > 0 && area_v2_v0_p > 0)
             {
-                // printf("YES @ (%d, %d) \n", x, y);
-
                 // w0 not needed due to optimization (see below)
                 const float w1 = area_v2_v0_p / totalArea;
                 const float w2 = area_v0_v1_p / totalArea;
@@ -658,9 +532,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                     // Z = Z0 + w1(Z1 - Z0) + w2(Z2 - Z0)
                     return z0 + w1 * (z1 - z0) + w2 * (z2 - z0);
                 };
-
-
-
 
                 uint32_t pixelIndex = (y * m_FrameWidth + x);
 

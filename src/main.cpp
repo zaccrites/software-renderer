@@ -21,8 +21,6 @@ const uint32_t DISPLAY_HEIGHT = FRAME_HEIGHT * DISPLAY_SCALING;
 
 
 
-// TODO: Make a cylinder-like mesh.
-// std::vector<Vertex> MakeMesh(uint32_t sides)
 std::vector<Vertex> MakeMesh()
 {
     // "VBO" (TODO: Use indexing to render, rather than duplicating vertices)
@@ -206,8 +204,6 @@ int main(int argc, char** argv)
     float cameraPitch = 0.0;
     float cameraYaw = 0.0;
 
-    // float cameraX = 0.0;
-    // float cameraX = 13.7;
     float cameraX = 0;
     float cameraY = 0;
     float cameraZ = 10;
@@ -288,11 +284,8 @@ int main(int argc, char** argv)
 
 
         glm::mat4 model1 {1.0};
-        // model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
         model1 = glm::scale(model1, glm::vec3 {0.5, 0.5, 0.5});
-        // model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0)), glm::vec3 {0.0, 1.0, 0.0});
         model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
-        // model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0)), glm::vec3 {0.0, 1.0, 0.0});
 
         glm::mat4 model2 {1.0};
         model1 = glm::scale(model1, glm::vec3 {3.0, 3.0, 3.0});
@@ -328,21 +321,14 @@ int main(int argc, char** argv)
 
         glm::vec3 target = {-cameraX, 0.0, 0.0};
         glm::vec3 up = {0.0, 1.0, 0.0};
-        // glm::mat4 view = glm::lookAt(eye, target, up);
 
 
         glm::mat4 view {1.0};
-        // view = glm::rotate(view, -cameraRoll, {0.0, 0.0, 1.0});
         view = glm::rotate(view, -cameraPitch, {1.0, 0.0, 0.0});
         view = glm::rotate(view, -cameraYaw, {0.0, 1.0, 0.0});
         view = glm::translate(view, {-cameraX, -cameraY, -cameraZ});
 
-        // view = glm::lookAt(eye, target, up);
-
-
         context.Clear(0x64, 0x95, 0xed);
-
-
 
         context.UseTexture(texture);
         // context.UseTexture(texture2);
