@@ -19,8 +19,6 @@ const uint32_t DISPLAY_WIDTH = FRAME_WIDTH * DISPLAY_SCALING;
 const uint32_t DISPLAY_HEIGHT = FRAME_HEIGHT * DISPLAY_SCALING;
 
 
-
-
 std::vector<Vertex> MakeMesh()
 {
     // "VBO" (TODO: Use indexing to render, rather than duplicating vertices)
@@ -43,7 +41,6 @@ std::vector<Vertex> MakeMesh()
         glm::vec3 red     = {1.0, 0.0, 0.0};
         glm::vec3 green   = {0.0, 1.0, 0.0};
         glm::vec3 blue    = {0.0, 0.0, 1.0};
-
 
         mesh.push_back({top_downLeft, color, tex_downLeft});
         mesh.push_back({top_downRight, color, tex_downRight});
@@ -73,8 +70,6 @@ std::vector<Vertex> MakeMesh()
 
     return mesh;
 }
-
-
 
 
 uint32_t MakeCheckerboardTexture(SoftwareRenderer& rContext, bool hollowCenters = false)
@@ -124,8 +119,6 @@ uint32_t MakeTextureFromFile(SoftwareRenderer& rContext, const char* filename)
     {
         return 0;
     }
-
-    // TODO: assert(comp == 4)  ??
 
     std::vector<uint8_t> data;
     for (size_t i = 0; i < width * height * 4; i += 4)
@@ -183,9 +176,7 @@ int main(int argc, char** argv)
         FRAME_HEIGHT
     );
 
-
     SoftwareRenderer context {FRAME_WIDTH, FRAME_HEIGHT};
-
 
     auto texture = MakeCheckerboardTexture(context);
     auto texture2 = MakeTextureFromFile(context, "textures/moon.png");
@@ -198,8 +189,6 @@ int main(int argc, char** argv)
     auto cube1 = MakeMesh();
     auto cube2 = MakeMesh();
 
-
-
     float cameraRoll = 0.0;
     float cameraPitch = 0.0;
     float cameraYaw = 0.0;
@@ -208,12 +197,10 @@ int main(int argc, char** argv)
     float cameraY = 0;
     float cameraZ = 10;
 
-
     float t = 0;
     bool isRunning = true;
     while (isRunning)
     {
-
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
@@ -256,7 +243,6 @@ int main(int argc, char** argv)
                             cameraY -= 0.1f;
                             break;
 
-
                         // TODO: Use mouse, and move in direction of camera movement
                         // Extract camera class
                         case SDLK_UP:
@@ -282,7 +268,6 @@ int main(int argc, char** argv)
             }
         }
 
-
         glm::mat4 model1 {1.0};
         model1 = glm::scale(model1, glm::vec3 {0.5, 0.5, 0.5});
         model1 = glm::rotate(model1, static_cast<float>(glm::radians(45.0 * t)), glm::vec3 {0.0, 1.0, 0.0});
@@ -305,7 +290,6 @@ int main(int argc, char** argv)
         // Compare bounding spheres of potential objects to draw with frustum
         // planes to do coarse pruning of objects to draw to draw.
 
-
         float cameraRadius = 30.0;
         float cameraAngle = 45.0;
         // cameraAngle *= std::sin(glm::radians(t * 90.0));
@@ -316,12 +300,8 @@ int main(int argc, char** argv)
         };
         std::cout << cameraX << std::endl;
 
-
-
-
         glm::vec3 target = {-cameraX, 0.0, 0.0};
         glm::vec3 up = {0.0, 1.0, 0.0};
-
 
         glm::mat4 view {1.0};
         view = glm::rotate(view, -cameraPitch, {1.0, 0.0, 0.0});
@@ -338,7 +318,6 @@ int main(int argc, char** argv)
         context.UseTexture(texture2);
         context.SetViewModelMatrix(view * model2);
         context.DrawTriangleList(cube2);
-
 
         // TODO: Use the SDL_PixelFormat struct to get rid of the 4 magic number
         SDL_UpdateTexture(pDisplayTexture, NULL, context.GetFramebufferPointer(), FRAME_WIDTH * 4);

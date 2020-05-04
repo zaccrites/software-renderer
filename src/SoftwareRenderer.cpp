@@ -1,19 +1,14 @@
 
 #include <algorithm>
 #include <cmath>
-
-#include "SoftwareRenderer.hpp"
+#include <stdio.h>
 
 #include <glm/gtc/matrix_transform.hpp>
 
-#include <stdio.h>
-
-
+#include "SoftwareRenderer.hpp"
 
 
 static int frameTriangleCounter = 0;
-
-
 
 
 SoftwareRenderer::SoftwareRenderer(uint32_t frameWidth, uint32_t frameHeight) :
@@ -63,7 +58,6 @@ void SoftwareRenderer::SetViewModelMatrix(const glm::mat4& value)
 }
 
 
-
 uint32_t SoftwareRenderer::CreateTexture()
 {
     m_Textures.push_back({0, 0, {}});
@@ -105,10 +99,6 @@ SoftwareRenderer::Texture& SoftwareRenderer::GetActiveTexture()
 }
 
 
-
-// TODO: Use fixed point simulation instead of float for fragment shading?
-
-
 void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
 {
     // Model Space -> World Space -> Camera Space -> [Clip Space] -> NDC Space -> Raster Space
@@ -117,11 +107,7 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
         v.position = transformMatrix * v.position;
     };
 
-
-
-
-
-    enum class Direction { X, Y, Z};
+    enum class Direction { X, Y, Z };
 
     // For now, only clipping against the "right" (+X) plane.
     auto clipLineSegment = [](const Vertex& a, const Vertex& b, Direction direction, bool positive) -> Vertex {
@@ -150,10 +136,8 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
             break;
         }
 
-
         // TODO: Invariant: 0 <= *.W
         // If it's not, what do we do?
-
         if (a.position.w < 0 || b.position.w < 0)
         {
             printf("WARNING: a.position.w == %02f, b.position.w == %02f \n", a.position.w, b.position.w);
@@ -183,31 +167,12 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
         const float newU = interpolate(a.texcoords.x, b.texcoords.x, t);
         const float newV = interpolate(a.texcoords.y, b.texcoords.y, t);
 
-        // printf("Interpolated x coord: %f and %f into %f \n", a.position.x, b.position.x, newX);
-
-
-        // printf(
-        //     "new (x=%02f, y=%02f, z=%02f, w=%02f) \n"
-        //     "    (r=%02f, g=%02f, b=%02f) \n"
-        //     "    (u=%02f, v=%02f) \n",
-        //     newX, newY, newZ, newW,
-        //     newR, newG, newB,
-        //     newU, newV
-        // );
-
-
-
         return {
             { newX, newY, newZ, newW },
             { newR, newG, newB },
             { newU, newV }
         };
-
-
-
     };
-
-
 
     // TODO: Avoid copying vertices? Make local VBOs to use instead?
     // This algorithm modifies the vertices, so it might be unavoidable to
@@ -225,9 +190,6 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
     for (int planeNumber = 0; planeNumber < 6; planeNumber++)
     {
         // if (planeNumber > 1) break;
-
-
-
         for (size_t i = 0; i < clipVertices.size(); i += 3)
         {
             Vertex v0 = clipVertices[i + 0];
@@ -270,11 +232,6 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
                     (v0_out ? 0 : 0b100) |
                     (v1_out ? 0 : 0b010) |
                     (v2_out ? 0 : 0b001);
-
-                // pattern = 7;
-
-                // if ( ! positive)
-                    // printf("pattern = %d  \n", pattern);
 
                 switch (pattern)
                 {
@@ -370,7 +327,6 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
                 }
             };  // clipTriangle
 
-            // printf("planeNumber = %d \n", planeNumber);
             switch (planeNumber)
             {
             case 0:
@@ -397,7 +353,6 @@ void SoftwareRenderer::DrawTriangleList(const std::vector<Vertex>& vertices)
             }
 
         }
-
 
         // After clipping each triangle against a plane,
         // move the new vertices back into the original
@@ -450,7 +405,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
         v.position.y = (1.0f - v.position.y) * (m_FrameHeight / 2);
     };
 
-
     Vertex v0_copy = v0;
     Vertex v1_copy = v1;
     Vertex v2_copy = v2;
@@ -469,7 +423,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
         const glm::vec2 b { p - p1 };
         return a.x * b.y - a.y * b.x;
     };
-
 
     const float totalArea = edgeFunction({v0.position.x, v0.position.y}, {v1.position.x, v1.position.y}, {v2.position.x, v2.position.y});
     if (totalArea <= 0)
@@ -500,8 +453,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
         case 11: debugColor = {0.0, 0.5, 0.5}; break;
     }
     frameTriangleCounter += 1;
-
-
 
     for (uint32_t y = ymin; y <= ymax; y++)
     {
@@ -545,11 +496,8 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                 // float depth = 1.0 / mixBarycentric(v0.position.w, v1.position.w, v2.position.w);
                 // printf("depth = %.4f  \n", depth);
 
-
                 // Even though it's not clipped yet, z is less than 0.
                 // That's messing everything up here.
-
-
                 // std::cout << "depth = " << depth << std::endl;
 
                 // Sample texture, if in use
@@ -587,8 +535,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                     textureColorA = rTexture.data[sampleIndex + 3];
                 }
 
-
-
                 // Alpha Test
                 if (textureColorA < 0.5)
                 {
@@ -607,7 +553,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                     continue;
                 }
 
-
                 float vertexColorR = mixBarycentric(v0.color.r, v1.color.r, v2.color.r) * depth;
                 float vertexColorG = mixBarycentric(v0.color.g, v1.color.g, v2.color.g) * depth;
                 float vertexColorB = mixBarycentric(v0.color.b, v1.color.b, v2.color.b) * depth;
@@ -615,7 +560,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                 vertexColorR = debugColor.r;
                 vertexColorG = debugColor.g;
                 vertexColorB = debugColor.b;
-
 
                 float pixelColorR = vertexColorR;
                 float pixelColorG = vertexColorG;
@@ -633,8 +577,6 @@ void SoftwareRenderer::RenderTriangle(Vertex& v0, Vertex& v1, Vertex& v2)
                 m_Framebuffer[pixelIndex * 4 + 2] = static_cast<uint8_t>(0xff * pixelColorR);
                 m_Framebuffer[pixelIndex * 4 + 3] = 0xff;  // TODO: Alpha Blending
             }
-
-
         }
     }
 }

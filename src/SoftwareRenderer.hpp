@@ -2,14 +2,12 @@
 #ifndef SOFTWARE_RENDERER_HPP
 #define SOFTWARE_RENDERER_HPP
 
-
 #include <stdint.h>
 #include <glm/glm.hpp>
 
 #include <vector>
 
 #include "Vertex.hpp"
-
 
 
 // TODO: Make abstract class above this one.
@@ -19,27 +17,21 @@ public:
 
     SoftwareRenderer(uint32_t frameWidth, uint32_t frameHeight);
 
-
     void Clear(uint8_t r, uint8_t g, uint8_t b);
-
 
     void DrawTriangleList(const std::vector<Vertex>& vertices);
 
-
     void SetProjectionMatrix(const glm::mat4& value);
     void SetViewModelMatrix(const glm::mat4& value);
-
 
     uint32_t CreateTexture();
     void UpdateTexture(uint32_t id, uint32_t width, uint32_t height, const uint8_t* pData);
     void DestroyTexture(uint32_t id);
     void UseTexture(uint32_t id);
 
-
     // TODO: Is this a part of the real API? Would be almost
     // impossible in hardware, but easy on any simulated version.
     const uint8_t* GetFramebufferPointer() const;
-
 
 private:
 
